@@ -53,22 +53,45 @@ const Home = () => {
 
   const columns = useMemo(
     () => [
-      { field: "_id", headerName: "id", width: 100 },
-      { field: "name", headerName: "Nombre Gasto", width: 250, editable: true },
+      { field: "_id", headerName: "id", width: 120 },
       {
-        field: "category",
-        headerName: "Categoría",
+        field: "name",
+        headerName: "Nombre Gasto",
         width: 250,
         editable: true,
         renderCell: (params: GridCellParams) => (
-          <>{params.value.charAt(0).toUpperCase() + params.value.slice(1)}</>
+          <>
+            <p title={params.value}>
+              {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
+            </p>
+          </>
+        ),
+      },
+      {
+        field: "category",
+        headerName: "Categoría",
+        width: 150,
+        editable: true,
+        renderCell: (params: GridCellParams) => (
+          <>
+            <p title={params.value}>
+              {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
+            </p>
+          </>
         ),
       },
       {
         field: "detail",
         headerName: "Detalle del Gasto",
-        width: 200,
+        width: 250,
         editable: true,
+        renderCell: (params: GridCellParams) => (
+          <>
+            <p title={params.value}>
+              {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
+            </p>
+          </>
+        ),
       },
       {
         field: "amount",
@@ -80,13 +103,13 @@ const Home = () => {
       {
         field: "date",
         headerName: "Fecha",
-        width: 150,
+        width: 100,
         editable: true,
       },
       {
         field: "type",
         headerName: "Tipo",
-        width: 150,
+        width: 100,
         editable: true,
         renderCell: (params: GridCellParams) => (
           <>{params.value.charAt(0).toUpperCase() + params.value.slice(1)}</>
@@ -95,14 +118,17 @@ const Home = () => {
       {
         field: "paymethod",
         headerName: "Método de Pago",
-        width: 150,
+        width: 130,
         editable: true,
+        renderCell: (params: GridCellParams) => (
+          <>{params.value.charAt(0).toUpperCase() + params.value.slice(1)}</>
+        ),
       },
       {
         field: "dues",
         headerName: "Cuotas",
         type: "number",
-        width: 100,
+        width: 70,
         editable: true,
       },
       {

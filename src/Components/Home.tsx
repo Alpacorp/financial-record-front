@@ -181,6 +181,7 @@ const Home = () => {
           <option value="diversion">Diversión</option>
           <option value="trabajo">Trabajo</option>
           <option value="plataformas web">Plataformas Web</option>
+          <option value="inversiones">Inversiones</option>
         </select>
         <input
           onChange={handleInputChange}

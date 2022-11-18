@@ -7,9 +7,20 @@ import AppRoutes from "./Containers/AppRoutes";
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
+
+const maintenance = process.env.REACT_APP_MAINTENANCE || false;
+
+console.log("maintenance", maintenance);
+
 root.render(
   <React.StrictMode>
-    <AppRoutes />
+    {!maintenance ? (
+      <div className="maintenance">
+        <h1>Site is currently under maintenance</h1>
+      </div>
+    ) : (
+      <AppRoutes />
+    )}
   </React.StrictMode>
 );
 

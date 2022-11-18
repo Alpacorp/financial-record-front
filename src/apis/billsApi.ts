@@ -1,7 +1,9 @@
 import axios from "axios";
 
+const baseUrl = process.env.REACT_APP_URL;
+
 const billsApi = axios.create({
-  baseURL: "https://financial-record-back-production.up.railway.app/api/v1",
+  baseURL: baseUrl,
 });
 
 export default billsApi;

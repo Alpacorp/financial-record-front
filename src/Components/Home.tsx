@@ -176,6 +176,7 @@ const Home = () => {
           <option value="-1">Selecciona</option>
           <option value="educación">Educación</option>
           <option value="comida">Comida</option>
+          <option value="ropa">Ropa</option>
           <option value="servicios publicos">Servicios Públicos</option>
           <option value="transporte">Transporte</option>
           <option value="diversion">Diversión</option>
@@ -225,7 +226,9 @@ const Home = () => {
           <option value="nequi">Nequi</option>
           <option value="daviplata">Daviplata</option>
           <option value="nu">Nu</option>
-          <option value="rappy">Rappy</option>
+          <option value="rappy alejo">Rappy Alejo</option>
+          <option value="rappy diana">Rappy Diana</option>
+          <option value="transfiya">TransfiYa</option>
         </select>
         <input
           onChange={handleInputChange}

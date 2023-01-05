@@ -3,10 +3,13 @@ import { DataGrid, GridCellParams, GridToolbar } from "@mui/x-data-grid";
 import billsApi from "../apis/billsApi";
 import { useForm } from "../hooks/useForm";
 import Actions from "./Actions";
+import { useSelector } from "react-redux";
+import { useBills } from "../hooks/useBills";
 
 const Home = () => {
   const [rowId, setRowId] = useState(null);
-  const [data, setData] = useState([]);
+  const { billsStore } = useBills();
+  const { bills } = useSelector((state: any) => state.bills);
 
   const [formValues, handleInputChange, reset] = useForm({
     name: "",
@@ -36,20 +39,9 @@ const Home = () => {
     reset();
   };
 
-  const getBills = async () => {
-    try {
-      const response = await billsApi.get("/bills");
-      setData(response.data.bills);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
   useEffect(() => {
-    getBills();
+    billsStore();
   }, []);
-
-  console.log("data", data);
 
   const columns = useMemo(
     () => [
@@ -244,13 +236,13 @@ const Home = () => {
         />
       </form>
       <DataGrid
-        rows={data}
+        rows={bills}
         columns={columns}
         style={{ height: "800px", width: "100%" }}
         pageSize={10}
         getRowId={(row: any) => row._id}
         rowsPerPageOptions={[5, 10, 20, 50]}
-        loading={data.length === 0}
+        loading={bills.length === 0}
         components={{
           Toolbar: GridToolbar,
         }}

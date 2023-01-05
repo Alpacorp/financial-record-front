@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import reportWebVitals from "./reportWebVitals";
 import AppRoutes from "./Containers/AppRoutes";
+import { Provider } from "react-redux";
+import { store } from "./store/store";
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
@@ -14,13 +16,15 @@ console.log("maintenance", maintenance);
 
 root.render(
   <React.StrictMode>
-    {!maintenance ? (
-      <div className="maintenance">
-        <h1>Site is currently under maintenance</h1>
-      </div>
-    ) : (
-      <AppRoutes />
-    )}
+    <Provider store={store}>
+      {!maintenance ? (
+        <div className="maintenance">
+          <h1>Site is currently under maintenance</h1>
+        </div>
+      ) : (
+        <AppRoutes />
+      )}
+    </Provider>
   </React.StrictMode>
 );
 

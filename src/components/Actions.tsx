@@ -18,26 +18,33 @@ const Actions = ({
   const handleUpdate = async () => {
     setLoading(true);
     setTimeout(async () => {
-      const { name, email, role, shortname, idchanneltype } = params.row;
+      const { name, category, detail, amount, date, type, paymethod, dues } =
+        params.row;
       await updateData(params.id, {
         name,
-        email,
-        role,
-        shortname,
-        idchanneltype,
+        category,
+        detail,
+        amount,
+        date,
+        type,
+        paymethod,
+        dues,
       });
-      storeData();
+      // storeData();
       setRowId(null);
       setLoading(false);
     }, 1500);
     setSuccess(true);
+
+    setTimeout(() => {
+      setSuccess(false);
+    }, 1000);
   };
 
   const handleDelete = async () => {
     setLoading(true);
     setTimeout(async () => {
       await deleteData(params.id);
-      storeData();
       setRowId(null);
       setLoading(false);
     }, 1500);

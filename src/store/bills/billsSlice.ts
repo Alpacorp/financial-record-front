@@ -1,26 +1,26 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export const billsSlice = createSlice({
   name: "bills",
   initialState: {
     status: "checking",
-    bills: [],
+    data: [],
     error: undefined,
   },
   reducers: {
     onCheckingBills: (state) => {
       state.status = "checking";
-      state.bills = [];
+      state.data = [];
       state.error = undefined;
     },
-    onGetBillsSuccess: (state, action) => {
+    onGetBillsSuccess: (state, action: PayloadAction<[]>) => {
       state.status = "success";
-      state.bills = action.payload;
+      state.data = action.payload;
       state.error = undefined;
     },
-    onGetBillsFailure: (state, action) => {
+    onGetBillsFailure: (state, action: PayloadAction<[] | any>) => {
       state.status = "failure";
-      state.bills = [];
+      state.data = [];
       state.error = action.payload;
     },
     clearErrorMessageBills: (state) => {

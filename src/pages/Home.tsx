@@ -1,25 +1,30 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { DataGrid, GridCellParams, GridToolbar } from "@mui/x-data-grid";
-import billsApi from "../apis/billsApi";
-import { useForm } from "../hooks/useForm";
-import Actions from "./Actions";
 import { useSelector } from "react-redux";
+
+import Actions from "../components/Actions";
+
+import { useForm } from "../hooks/useForm";
 import { useBills } from "../hooks/useBills";
+import capitalize from "../utils/capitalize";
 
 const Home = () => {
+  const { data } = useSelector((state: any) => state.bills);
   const [rowId, setRowId] = useState(null);
-  const { billsStore } = useBills();
-  const { bills } = useSelector((state: any) => state.bills);
+  const [dataGrid, setDataGrid] = useState<any>([]);
+  const [loading, setLoading] = useState(false);
+  const { getBillsStore, createBillStore, updateBillStore, deleteBillStore } =
+    useBills();
 
   const [formValues, handleInputChange, reset] = useForm({
     name: "",
     category: "",
     detail: "",
-    amount: 0,
+    amount: "",
     date: "",
     type: "",
     paymethod: "",
-    dues: 0,
+    dues: "",
   });
 
   const { name, category, detail, amount, date, type, paymethod, dues } =
@@ -27,21 +32,27 @@ const Home = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log(formValues);
-    alert("Registro enviado" + JSON.stringify(formValues));
-
-    try {
-      const response = await billsApi.post("/bills/new", formValues);
-      console.log("response post", response);
-    } catch (error) {
-      console.log(error);
-    }
+    createBillStore(formValues);
     reset();
   };
 
   useEffect(() => {
-    billsStore();
+    setLoading(true);
+    getBillsStore();
+    setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setDataGrid(data);
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const columns = useMemo(
     () => [
@@ -135,9 +146,8 @@ const Home = () => {
                 params,
                 rowId,
                 setRowId,
-                // updateData,
-                // storeData,
-                // deleteData,
+                updateData: updateBillStore,
+                deleteData: deleteBillStore,
               }}
             />
           );
@@ -153,7 +163,7 @@ const Home = () => {
       <form onSubmit={handleSubmit}>
         <input
           onChange={handleInputChange}
-          value={name}
+          value={capitalize(name)}
           type="text"
           placeholder="Nombre del gasto"
           name="name"
@@ -165,29 +175,28 @@ const Home = () => {
           onChange={handleInputChange}
           required
         >
-          <option value="-1">Selecciona</option>
-          <option value="educación">Educación</option>
-          <option value="comida">Comida</option>
-          <option value="ropa">Ropa</option>
-          <option value="servicios publicos">Servicios Públicos</option>
-          <option value="transporte">Transporte</option>
-          <option value="diversion">Diversión</option>
-          <option value="trabajo">Trabajo</option>
-          <option value="plataformas web">Plataformas Web</option>
-          <option value="inversiones">Inversiones</option>
+          <option value="-1">Selecciona la categoria del gasto</option>
+          <option value="Educación">Educación</option>
+          <option value="Comida">Comida</option>
+          <option value="Servicios Públicos">Servicios Públicos</option>
+          <option value="Transporte">Transporte</option>
+          <option value="Diversión">Diversión</option>
+          <option value="Trabajo">Trabajo</option>
+          <option value="Plataformas Web">Plataformas Web</option>
+          <option value="Inversiones">Inversiones</option>
         </select>
         <input
           onChange={handleInputChange}
           type="text"
-          placeholder="Detalle"
+          placeholder="Detalle del gasto"
           name="detail"
-          value={detail}
+          value={capitalize(detail)}
           required
         />
         <input
           onChange={handleInputChange}
           type="number"
-          placeholder="Costo"
+          placeholder="Valor del gasto"
           name="amount"
           value={amount}
           required
@@ -195,15 +204,16 @@ const Home = () => {
         <input
           onChange={handleInputChange}
           type="date"
+          placeholder="Fecha del gasto"
           name="date"
           id=""
           value={date}
           required
         />
         <select onChange={handleInputChange} name="type" value={type} required>
-          <option value="-1">Selecciona</option>
-          <option value="contado">Contado</option>
-          <option value="credito">Crédito</option>
+          <option value="-1">Seleccionael tipo de pago</option>
+          <option value="Contado">Contado</option>
+          <option value="Crédito">Crédito</option>
         </select>
         <select
           onChange={handleInputChange}
@@ -211,22 +221,20 @@ const Home = () => {
           value={paymethod}
           required
         >
-          <option value="-1">Selecciona</option>
-          <option value="efectivo">Efectivo</option>
-          <option value="debito">Débito</option>
-          <option value="tc davivienda">TC Davivienda</option>
-          <option value="nequi">Nequi</option>
-          <option value="daviplata">Daviplata</option>
-          <option value="nu">Nu</option>
-          <option value="rappy alejo">Rappy Alejo</option>
-          <option value="rappy diana">Rappy Diana</option>
-          <option value="transfiya">TransfiYa</option>
+          <option value="-1">Selecciona el método de pago</option>
+          <option value="Efectivo">Efectivo</option>
+          <option value="Debito">Débito</option>
+          <option value="Tc Davivienda">TC Davivienda</option>
+          <option value="Nequi">Nequi</option>
+          <option value="Daviplata">Daviplata</option>
+          <option value="Nu">Nu</option>
+          <option value="Rappy">Rappy</option>
         </select>
         <input
           onChange={handleInputChange}
           type="number"
           name="dues"
-          placeholder="Cuotas"
+          placeholder="Número de cuotas"
           value={dues}
         />
         <input
@@ -236,13 +244,13 @@ const Home = () => {
         />
       </form>
       <DataGrid
-        rows={bills}
+        rows={dataGrid}
         columns={columns}
         style={{ height: "800px", width: "100%" }}
         pageSize={10}
         getRowId={(row: any) => row._id}
         rowsPerPageOptions={[5, 10, 20, 50]}
-        loading={bills.length === 0}
+        loading={loading}
         components={{
           Toolbar: GridToolbar,
         }}

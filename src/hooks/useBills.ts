@@ -10,7 +10,7 @@ import {
 export const useBills = () => {
   const dispatch = useDispatch();
 
-  const billsStore = async () => {
+  const getBillsStore = async () => {
     dispatch(onCheckingBills());
 
     try {
@@ -25,5 +25,54 @@ export const useBills = () => {
     }
   };
 
-  return { billsStore };
+  const createBillStore = async (bill: any) => {
+    alert("Registro enviado" + JSON.stringify({ bill }));
+
+    dispatch(onCheckingBills());
+
+    try {
+      await billsApi.post("/bills/new", bill);
+      getBillsStore();
+    } catch (error) {
+      console.log(error);
+      dispatch(onGetBillsFailure(error));
+    }
+  };
+
+  const updateBillStore = async (id: string, bill: any) => {
+    alert("Registro actualizado" + JSON.stringify({ bill }));
+
+    dispatch(onCheckingBills());
+
+    try {
+      await billsApi.put(`/bills/${id}`, bill);
+      getBillsStore();
+    } catch (error) {
+      console.log(error);
+      dispatch(onGetBillsFailure(error));
+    }
+  };
+
+  const deleteBillStore = async (id: string) => {
+    const confirm = prompt(
+      `¿Estás seguro de borrar el registro? ${id} (escribe 'borrar' para confirmar)`
+    );
+
+    if (confirm === "borrar") {
+      dispatch(onCheckingBills());
+      try {
+        await billsApi.delete(`/bills/${id}`);
+        getBillsStore();
+      } catch (error) {
+        console.log(error);
+        dispatch(onGetBillsFailure(error));
+      }
+    } else {
+      alert("Operación cancelada");
+      getBillsStore();
+      return;
+    }
+  };
+
+  return { getBillsStore, createBillStore, updateBillStore, deleteBillStore };
 };

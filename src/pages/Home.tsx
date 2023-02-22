@@ -168,6 +168,7 @@ const Home = () => {
           placeholder="Nombre del gasto"
           name="name"
           required
+          autoFocus
         />
         <select
           name="category"
@@ -177,6 +178,7 @@ const Home = () => {
         >
           <option value="-1">Selecciona la categoria del gasto</option>
           <option value="Educación">Educación</option>
+          <option value="Ropa">Ropa</option>
           <option value="Comida">Comida</option>
           <option value="Servicios Públicos">Servicios Públicos</option>
           <option value="Transporte">Transporte</option>

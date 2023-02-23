@@ -179,12 +179,14 @@ const Home = () => {
           <option value="-1">Selecciona la categoria del gasto</option>
           <option value="Educación">Educación</option>
           <option value="Ropa">Ropa</option>
+          <option value="Salud">Salud</option>
           <option value="Comida">Comida</option>
           <option value="Servicios Públicos">Servicios Públicos</option>
           <option value="Transporte">Transporte</option>
           <option value="Diversión">Diversión</option>
           <option value="Trabajo">Trabajo</option>
           <option value="Plataformas Web">Plataformas Web</option>
+          <option value="Servicios Streaming">Servicios Streaming</option>
           <option value="Inversiones">Inversiones</option>
         </select>
         <input

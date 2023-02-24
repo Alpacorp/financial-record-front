@@ -179,7 +179,9 @@ const Home = () => {
           <option value="-1">Selecciona la categoria del gasto</option>
           <option value="Educación">Educación</option>
           <option value="Ropa">Ropa</option>
+          <option value="Impuestos">Impuestos</option>
           <option value="Salud">Salud</option>
+          <option value="Hogar">Hogar</option>
           <option value="Comida">Comida</option>
           <option value="Servicios Públicos">Servicios Públicos</option>
           <option value="Transporte">Transporte</option>
@@ -215,7 +217,7 @@ const Home = () => {
           required
         />
         <select onChange={handleInputChange} name="type" value={type} required>
-          <option value="-1">Seleccionael tipo de pago</option>
+          <option value="-1">Selecciona el tipo de pago</option>
           <option value="Contado">Contado</option>
           <option value="Crédito">Crédito</option>
         </select>

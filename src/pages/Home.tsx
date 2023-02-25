@@ -13,6 +13,7 @@ const Home = () => {
   const [rowId, setRowId] = useState(null);
   const [dataGrid, setDataGrid] = useState<any>([]);
   const [loading, setLoading] = useState(false);
+  const [counted, setCounted] = useState<any>(null);
   const { getBillsStore, createBillStore, updateBillStore, deleteBillStore } =
     useBills();
 
@@ -29,6 +30,15 @@ const Home = () => {
 
   const { name, category, detail, amount, date, type, paymethod, dues } =
     formValues;
+
+  const handleType = () => {
+    if (type === "Contado") {
+      setCounted(true);
+    } else if (type === "Crédito") {
+      setCounted(false);
+    }
+    return;
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,6 +63,11 @@ const Home = () => {
     }, 1000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
+
+  useEffect(() => {
+    handleType();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type]);
 
   const columns = useMemo(
     () => [
@@ -221,28 +236,45 @@ const Home = () => {
           <option value="Contado">Contado</option>
           <option value="Crédito">Crédito</option>
         </select>
-        <select
-          onChange={handleInputChange}
-          name="paymethod"
-          value={paymethod}
-          required
-        >
-          <option value="-1">Selecciona el método de pago</option>
-          <option value="Efectivo">Efectivo</option>
-          <option value="Debito">Débito</option>
-          <option value="Tc Davivienda">TC Davivienda</option>
-          <option value="Nequi">Nequi</option>
-          <option value="Daviplata">Daviplata</option>
-          <option value="Nu">Nu</option>
-          <option value="Rappy">Rappy</option>
-        </select>
-        <input
-          onChange={handleInputChange}
-          type="number"
-          name="dues"
-          placeholder="Número de cuotas"
-          value={dues}
-        />
+
+        {counted !== null ? (
+          <>
+            <select
+              onChange={handleInputChange}
+              name="paymethod"
+              value={paymethod}
+              required
+            >
+              <option value="-1">Selecciona el método de pago</option>
+
+              {counted ? (
+                <>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Debito">Débito</option>
+                  <option value="Nequi">Nequi</option>
+                </>
+              ) : (
+                <>
+                  <option value="Tc Davivienda">TC Davivienda</option>
+                  <option value="Daviplata">Daviplata</option>
+                  <option value="Nu">Nu</option>
+                  <option value="Rappy">Rappy</option>
+                </>
+              )}
+            </select>
+            {!counted && (
+              <input
+                onChange={handleInputChange}
+                type="number"
+                name="dues"
+                placeholder="Número de cuotas"
+                value={dues}
+              />
+            )}
+          </>
+        ) : (
+          ""
+        )}
         <input
           onChange={handleInputChange}
           type="submit"

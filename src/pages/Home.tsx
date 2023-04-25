@@ -205,6 +205,9 @@ const Home = () => {
           <option value="Plataformas Web">Plataformas Web</option>
           <option value="Servicios Streaming">Servicios Streaming</option>
           <option value="Inversiones">Inversiones</option>
+          <option value="Prestamos">Préstamos</option>
+          <option value="Apoyo Mamá">Apoyo Mamá</option>
+          <option value="Apoyo Papá">Apoyo Papá</option>
         </select>
         <input
           onChange={handleInputChange}

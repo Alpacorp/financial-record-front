@@ -193,6 +193,7 @@ const Home = () => {
         >
           <option value="-1">Selecciona la categoria del gasto</option>
           <option value="Educación">Educación</option>
+          <option value="Cuotas">Cuotas</option>
           <option value="Ropa">Ropa</option>
           <option value="Impuestos">Impuestos</option>
           <option value="Salud">Salud</option>

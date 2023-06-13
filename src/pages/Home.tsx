@@ -263,6 +263,7 @@ const Home = () => {
                   <option value="Daviplata">Daviplata</option>
                   <option value="Nu">Nu</option>
                   <option value="Rappy">Rappy</option>
+                  <option value="Rappy 2">Rappy 2</option>
                 </>
               )}
             </select>

@@ -78,11 +78,9 @@ const Home = () => {
         width: 250,
         editable: true,
         renderCell: (params: GridCellParams) => (
-          <>
-            <p title={params.value}>
-              {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
-            </p>
-          </>
+          <p title={params.value}>
+            {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
+          </p>
         ),
       },
       {
@@ -91,11 +89,9 @@ const Home = () => {
         width: 150,
         editable: true,
         renderCell: (params: GridCellParams) => (
-          <>
-            <p title={params.value}>
-              {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
-            </p>
-          </>
+          <p title={params.value}>
+            {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
+          </p>
         ),
       },
       {
@@ -104,11 +100,9 @@ const Home = () => {
         width: 250,
         editable: true,
         renderCell: (params: GridCellParams) => (
-          <>
-            <p title={params.value}>
-              {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
-            </p>
-          </>
+          <p title={params.value}>
+            {params.value.charAt(0).toUpperCase() + params.value.slice(1)}
+          </p>
         ),
       },
       {
@@ -257,6 +251,7 @@ const Home = () => {
                   <option value="Efectivo">Efectivo</option>
                   <option value="Debito">Débito</option>
                   <option value="Nequi">Nequi</option>
+                  <option value="Daviplata">Daviplata</option>
                 </>
               ) : (
                 <>

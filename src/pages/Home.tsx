@@ -252,6 +252,7 @@ const Home = () => {
                   <option value="Debito">Débito</option>
                   <option value="Nequi">Nequi</option>
                   <option value="Daviplata">Daviplata</option>
+                  <option value="RappyCuenta">Rappy Cuenta</option>
                 </>
               ) : (
                 <>

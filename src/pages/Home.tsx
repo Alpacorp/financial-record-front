@@ -190,6 +190,7 @@ const Home = () => {
           <option value="Apoyo Papá">Apoyo Papá</option>
           <option value="Arriendo">Arriendo</option>
           <option value="Comida">Comida</option>
+          <option value="Mercado">Mercado</option>
           <option value="Cuotas">Cuotas</option>
           <option value="Diversión">Diversión</option>
           <option value="Educación">Educación</option>
@@ -250,6 +251,7 @@ const Home = () => {
                 <>
                   <option value="Efectivo">Efectivo</option>
                   <option value="Debito">Débito</option>
+                  <option value="DebitoDavivienda">Débito Davivienda</option>
                   <option value="Nequi">Nequi</option>
                   <option value="Daviplata">Daviplata</option>
                   <option value="RappyCuenta">Rappy Cuenta</option>

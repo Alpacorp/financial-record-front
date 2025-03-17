@@ -37,7 +37,6 @@ const Home = () => {
     } else if (type === "Crédito") {
       setCounted(false);
     }
-    return;
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

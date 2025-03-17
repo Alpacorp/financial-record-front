@@ -5,7 +5,7 @@ export const billsSlice = createSlice({
   initialState: {
     status: "checking",
     data: [],
-    error: undefined,
+    error: undefined as string | undefined,
   },
   reducers: {
     onCheckingBills: (state) => {
@@ -18,7 +18,7 @@ export const billsSlice = createSlice({
       state.data = action.payload;
       state.error = undefined;
     },
-    onGetBillsFailure: (state, action: PayloadAction<[] | any>) => {
+    onGetBillsFailure: (state, action: PayloadAction<string>) => {
       state.status = "failure";
       state.data = [];
       state.error = action.payload;

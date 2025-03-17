@@ -189,6 +189,7 @@ const Home = () => {
           <option value="Apoyo Mamá">Apoyo Mamá</option>
           <option value="Apoyo Papá">Apoyo Papá</option>
           <option value="Arriendo">Arriendo</option>
+          <option value="Carro">Carro</option>
           <option value="Comida">Comida</option>
           <option value="Mercado">Mercado</option>
           <option value="Cuotas">Cuotas</option>

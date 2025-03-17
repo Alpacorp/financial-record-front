@@ -12,7 +12,7 @@ const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 
-const maintenance = process.env.REACT_APP_MAINTENANCE || false;
+const maintenance = process.env.REACT_APP_MAINTENANCE ?? false;
 
 root.render(
   <React.StrictMode>

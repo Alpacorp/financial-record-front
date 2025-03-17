@@ -4,14 +4,7 @@ import { Box, CircularProgress, Fab } from "@mui/material";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
 import { green, red } from "@mui/material/colors";
 
-const Actions = ({
-  params,
-  rowId,
-  setRowId,
-  updateData,
-  storeData,
-  deleteData,
-}: any) => {
+const Actions = ({ params, rowId, setRowId, updateData, deleteData }: any) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -30,7 +23,6 @@ const Actions = ({
         paymethod,
         dues,
       });
-      // storeData();
       setRowId(null);
       setLoading(false);
     }, 1500);

@@ -35,7 +35,7 @@ export const useBills = () => {
       getBillsStore();
     } catch (error) {
       console.log(error);
-      dispatch(onGetBillsFailure(error));
+      dispatch(onGetBillsFailure(error as string));
     }
   };
 
@@ -49,7 +49,7 @@ export const useBills = () => {
       getBillsStore();
     } catch (error) {
       console.log(error);
-      dispatch(onGetBillsFailure(error));
+      dispatch(onGetBillsFailure(error as string));
     }
   };
 
@@ -65,12 +65,11 @@ export const useBills = () => {
         getBillsStore();
       } catch (error) {
         console.log(error);
-        dispatch(onGetBillsFailure(error));
+        dispatch(onGetBillsFailure(error as string));
       }
     } else {
       alert("Operación cancelada");
       getBillsStore();
-      return;
     }
   };
 

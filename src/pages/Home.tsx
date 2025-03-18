@@ -8,12 +8,17 @@ import { useForm } from "../hooks/useForm";
 import { useBills } from "../hooks/useBills";
 import capitalize from "../utils/capitalize";
 
+const accessValue = process.env.REACT_APP_CONTENT;
+
 const Home = () => {
   const { data } = useSelector((state: any) => state.bills);
+
   const [rowId, setRowId] = useState(null);
   const [dataGrid, setDataGrid] = useState<any>([]);
   const [loading, setLoading] = useState(false);
   const [counted, setCounted] = useState<any>(null);
+  const [showContent, setShowContent] = useState(false);
+
   const { getBillsStore, createBillStore, updateBillStore, deleteBillStore } =
     useBills();
 
@@ -26,10 +31,22 @@ const Home = () => {
     type: "",
     paymethod: "",
     dues: "",
+    access: "",
   });
 
-  const { name, category, detail, amount, date, type, paymethod, dues } =
-    formValues;
+  const {
+    name,
+    category,
+    detail,
+    amount,
+    date,
+    type,
+    paymethod,
+    dues,
+    access,
+  } = formValues;
+
+  console.log("logale, access out", access);
 
   const handleType = () => {
     if (type === "Contado") {
@@ -45,12 +62,24 @@ const Home = () => {
     reset();
   };
 
+  const handleShowContent = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const access = e.currentTarget.access.value;
+
+    if (access === accessValue) {
+      setShowContent(true);
+    } else {
+      alert("Acceso denegado");
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     getBillsStore();
     setTimeout(() => {
       setLoading(false);
     }, 1000);
+    setShowContent(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,6 +194,26 @@ const Home = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rowId]
   );
+
+  if (!showContent) {
+    return (
+      <div>
+        <h1>Welcome</h1>
+        <form onSubmit={handleShowContent}>
+          <input
+            type="text"
+            placeholder="Acceso"
+            name="access"
+            required
+            autoFocus
+            onChange={handleInputChange}
+            value={access}
+          />
+          <input type="submit" value="Ingresar" />
+        </form>
+      </div>
+    );
+  }
 
   return (
     <>

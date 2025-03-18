@@ -8,7 +8,7 @@ import { useForm } from "../hooks/useForm";
 import { useBills } from "../hooks/useBills";
 import capitalize from "../utils/capitalize";
 
-const accessValue = process.env.REACT_APP_ACCESS;
+const accessValue = process.env.REACT_APP_CONTENT;
 
 const Home = () => {
   const { data } = useSelector((state: any) => state.bills);

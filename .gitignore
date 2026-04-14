@@ -23,7 +23,12 @@
 .env.development
 .env.test
 .env.production
-.env.local
+
+# Claude
+.claude
+
+# Idea
+.idea
 
 npm-debug.log*
 yarn-debug.log*

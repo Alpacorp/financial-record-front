@@ -8,9 +8,11 @@ import {
   flexRender,
   createColumnHelper,
   SortingState,
+  ColumnFiltersState,
+  FilterFn,
 } from "@tanstack/react-table";
 import { Bill, BillFormValues } from "../../types/bill";
-import { getCategoryColor } from "../../constants/categories";
+import { EXPENSE_CATEGORIES, getCategoryColor } from "../../constants/categories";
 import ConfirmDeleteDialog from "../ConfirmDeleteDialog";
 import EditBillModal from "./EditBillModal";
 
@@ -22,6 +24,13 @@ interface BillsTableProps {
 }
 
 const columnHelper = createColumnHelper<Bill>();
+
+const amountRangeFilter: FilterFn<Bill> = (row, _id, [min, max]: [number, number]) => {
+  const v = row.getValue<number>("amount");
+  if (min > 0 && v < min) return false;
+  if (max > 0 && v > max) return false;
+  return true;
+};
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -54,8 +63,42 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
     { id: "date", desc: true },
   ]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterCategory,   setFilterCategory]   = useState("");
+  const [filterType,       setFilterType]        = useState("");
+  const [filterPaymethod,  setFilterPaymethod]   = useState("");
+  const [filterAmountMin,  setFilterAmountMin]   = useState("");
+  const [filterAmountMax,  setFilterAmountMax]   = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Bill | null>(null);
   const [editTarget, setEditTarget] = useState<Bill | null>(null);
+
+  // Unique paymethods present in data
+  const paymethods = useMemo(
+    () => [...new Set(data.map((b) => b.paymethod).filter(Boolean))].sort(),
+    [data]
+  );
+
+  // Build TanStack columnFilters from local state
+  const columnFilters = useMemo((): ColumnFiltersState => {
+    const f: ColumnFiltersState = [];
+    if (filterCategory)  f.push({ id: "category",  value: filterCategory });
+    if (filterType)      f.push({ id: "type",       value: filterType });
+    if (filterPaymethod) f.push({ id: "paymethod",  value: filterPaymethod });
+    if (filterAmountMin || filterAmountMax)
+      f.push({ id: "amount", value: [Number(filterAmountMin) || 0, Number(filterAmountMax) || 0] });
+    return f;
+  }, [filterCategory, filterType, filterPaymethod, filterAmountMin, filterAmountMax]);
+
+  const activeFilterCount = [filterCategory, filterType, filterPaymethod, filterAmountMin || filterAmountMax]
+    .filter(Boolean).length;
+
+  const clearFilters = () => {
+    setFilterCategory("");
+    setFilterType("");
+    setFilterPaymethod("");
+    setFilterAmountMin("");
+    setFilterAmountMax("");
+  };
 
   const columns = useMemo(
     () => [
@@ -77,6 +120,7 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       }),
       columnHelper.accessor("category", {
         header: "Categoría",
+        filterFn: "equals",
         cell: (info) => {
           const cat = info.getValue();
           const color = getCategoryColor(cat);
@@ -109,6 +153,7 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       }),
       columnHelper.accessor("amount", {
         header: "Monto",
+        filterFn: amountRangeFilter,
         cell: (info) => (
           <span className="font-semibold text-gray-900 text-sm tabular-nums">
             {formatCurrency(info.getValue())}
@@ -118,11 +163,13 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       }),
       columnHelper.accessor("type", {
         header: "Tipo",
+        filterFn: "equals",
         cell: (info) => typeBadge(info.getValue()),
         size: 90,
       }),
       columnHelper.accessor("paymethod", {
         header: "Método",
+        filterFn: "equals",
         cell: (info) => (
           <span className="text-gray-600 text-sm">{info.getValue()}</span>
         ),
@@ -175,9 +222,10 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, columnFilters },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: () => { /* controlled externally */ },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -250,6 +298,26 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
                 className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white w-full sm:w-56 transition-colors"
               />
             </div>
+            {/* Filters toggle */}
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className={`relative flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition-colors whitespace-nowrap ${
+                showFilters || activeFilterCount > 0
+                  ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                  : "text-gray-600 border-gray-300 hover:bg-gray-50"
+              }`}
+              title="Filtros"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              Filtros
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-indigo-600 text-white text-xs rounded-full flex items-center justify-center leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
             {/* Export */}
             <button
               onClick={exportCsv}
@@ -263,6 +331,108 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
             </button>
           </div>
         </div>
+
+        {/* Filter panel */}
+        {showFilters && (
+          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
+            <div className="flex flex-wrap gap-3 items-end">
+
+              {/* Categoría */}
+              <div className="flex flex-col gap-1 min-w-[160px]">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Todas</option>
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tipo */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</label>
+                <div className="flex rounded-lg border border-gray-300 overflow-hidden bg-white">
+                  {(["", "Contado", "Crédito"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setFilterType(t)}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        filterType === t
+                          ? "bg-indigo-600 text-white"
+                          : "text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {t === "" ? "Todos" : t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Método */}
+              <div className="flex flex-col gap-1 min-w-[160px]">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Método</label>
+                <select
+                  value={filterPaymethod}
+                  onChange={(e) => setFilterPaymethod(e.target.value)}
+                  className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Todos</option>
+                  {paymethods.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Monto rango */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Monto</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Mínimo"
+                      value={filterAmountMin}
+                      onChange={(e) => setFilterAmountMin(e.target.value)}
+                      className="pl-6 pr-2 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 w-32"
+                    />
+                  </div>
+                  <span className="text-gray-400 text-sm">—</span>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Máximo"
+                      value={filterAmountMax}
+                      onChange={(e) => setFilterAmountMax(e.target.value)}
+                      className="pl-6 pr-2 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 w-32"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Limpiar */}
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors self-end"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Limpiar
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">

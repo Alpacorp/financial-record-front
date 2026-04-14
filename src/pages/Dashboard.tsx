@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  ResponsiveContainer, PieChart, Pie,
 } from "recharts";
 import {
   filterBillsByRange,
@@ -143,7 +143,13 @@ const Dashboard = () => {
   const filtered     = useMemo(() => filterBillsByRange(data, from, to), [data, from, to]);
   const stats        = useMemo(() => getSummaryStats(filtered), [filtered]);
   const trend        = useMemo(() => getMonthlyTrend(data, from, to), [data, from, to]);
-  const byCategory   = useMemo(() => getSpendingByCategory(filtered), [filtered]);
+  const byCategory = useMemo(
+    () => getSpendingByCategory(filtered).map((cat) => ({
+      ...cat,
+      fill: getCategoryColor(cat.name),
+    })),
+    [filtered]
+  );
 
   const loading = status === "checking" || status === "idle";
 
@@ -278,11 +284,7 @@ const Dashboard = () => {
                     outerRadius={95}
                     paddingAngle={2}
                     dataKey="value"
-                  >
-                    {byCategory.map((e, i) => (
-                      <Cell key={i} fill={getCategoryColor(e.name)} />
-                    ))}
-                  </Pie>
+                  />
                   <Tooltip content={<PieTip />} />
                 </PieChart>
               </ResponsiveContainer>
@@ -292,7 +294,7 @@ const Dashboard = () => {
                 {byCategory.map((cat) => (
                   <div key={cat.name} className="flex items-center gap-1.5">
                     <span
-                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: getCategoryColor(cat.name) }}
                     />
                     <span className="text-xs text-gray-500">{cat.name}</span>
@@ -318,7 +320,7 @@ const Dashboard = () => {
               return (
                 <div key={cat.name} className="flex items-center gap-4 px-5 py-3">
                   <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: color }}
                   />
                   <span className="text-sm text-gray-700 flex-1">{cat.name}</span>

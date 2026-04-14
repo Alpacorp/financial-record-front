@@ -5,6 +5,7 @@ import { Provider } from "react-redux";
 import { store } from "./store/store";
 
 import AppRoutes from "./containers/AppRoutes";
+import { NotificationProvider } from "./context/NotificationContext";
 
 import "./index.css";
 
@@ -12,18 +13,22 @@ const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 
-const maintenance = process.env.REACT_APP_MAINTENANCE ?? false;
+const isUnderMaintenance = import.meta.env.VITE_MAINTENANCE === "true";
 
 root.render(
   <React.StrictMode>
     <Provider store={store}>
-      {!maintenance ? (
-        <div className="maintenance">
-          <h1>Site is currently under maintenance</h1>
-        </div>
-      ) : (
-        <AppRoutes />
-      )}
+      <NotificationProvider>
+        {isUnderMaintenance ? (
+          <div className="flex items-center justify-center min-h-screen bg-gray-100">
+            <h1 className="text-2xl font-semibold text-gray-600">
+              Sitio en mantenimiento, vuelve pronto.
+            </h1>
+          </div>
+        ) : (
+          <AppRoutes />
+        )}
+      </NotificationProvider>
     </Provider>
   </React.StrictMode>
 );

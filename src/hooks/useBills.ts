@@ -6,70 +6,61 @@ import {
   onGetBillsFailure,
   onGetBillsSuccess,
 } from "../store/bills/billsSlice";
+import { useNotification } from "../context/NotificationContext";
+import { BillFormValues } from "../types/bill";
 
 export const useBills = () => {
   const dispatch = useDispatch();
+  const { notify } = useNotification();
 
   const getBillsStore = async () => {
     dispatch(onCheckingBills());
-
     try {
       const { data } = await billsApi.get("/bills");
       dispatch(onGetBillsSuccess(data.bills));
-    } catch (error: any) {
-      console.log("error", error);
-      dispatch(onGetBillsFailure(error));
-      setTimeout(() => {
-        dispatch(clearErrorMessageBills());
-      }, 0);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Error al cargar registros";
+      dispatch(onGetBillsFailure(msg));
+      setTimeout(() => dispatch(clearErrorMessageBills()), 0);
     }
   };
 
-  const createBillStore = async (bill: any) => {
-    alert("Registro enviado" + JSON.stringify({ bill }));
-
+  const createBillStore = async (bill: BillFormValues) => {
     dispatch(onCheckingBills());
-
     try {
       await billsApi.post("/bills/new", bill);
-      getBillsStore();
-    } catch (error) {
-      console.log(error);
-      dispatch(onGetBillsFailure(error as string));
+      await getBillsStore();
+      notify({ message: "Gasto registrado correctamente", severity: "success" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Error al registrar";
+      dispatch(onGetBillsFailure(msg));
+      notify({ message: "Error al registrar el gasto", severity: "error" });
     }
   };
 
-  const updateBillStore = async (id: string, bill: any) => {
-    alert("Registro actualizado" + JSON.stringify({ bill }));
-
+  const updateBillStore = async (id: string, bill: BillFormValues) => {
     dispatch(onCheckingBills());
-
     try {
       await billsApi.put(`/bills/${id}`, bill);
-      getBillsStore();
-    } catch (error) {
-      console.log(error);
-      dispatch(onGetBillsFailure(error as string));
+      await getBillsStore();
+      notify({ message: "Registro actualizado", severity: "success" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Error al actualizar";
+      dispatch(onGetBillsFailure(msg));
+      notify({ message: "Error al actualizar el registro", severity: "error" });
     }
   };
 
   const deleteBillStore = async (id: string) => {
-    const confirm = prompt(
-      `¿Estás seguro de borrar el registro? ${id} (escribe 'borrar' para confirmar)`
-    );
-
-    if (confirm === "borrar") {
-      dispatch(onCheckingBills());
-      try {
-        await billsApi.delete(`/bills/${id}`);
-        getBillsStore();
-      } catch (error) {
-        console.log(error);
-        dispatch(onGetBillsFailure(error as string));
-      }
-    } else {
-      alert("Operación cancelada");
-      getBillsStore();
+    dispatch(onCheckingBills());
+    try {
+      await billsApi.delete(`/bills/${id}`);
+      await getBillsStore();
+      notify({ message: "Registro eliminado", severity: "success" });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Error al eliminar";
+      dispatch(onGetBillsFailure(msg));
+      notify({ message: "Error al eliminar el registro", severity: "error" });
     }
   };
 

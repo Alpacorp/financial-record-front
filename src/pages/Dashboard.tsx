@@ -110,6 +110,169 @@ const StatCard = ({ label, value, sub, accent = false }: {
   </div>
 );
 
+// ─── Category breakdown with drill-down ──────────────────────────────────────
+
+const fmtDateShort = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CO", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+};
+
+interface CategoryBreakdownProps {
+  byCategory: { name: string; value: number; fill: string }[];
+  filtered: Bill[];
+  stats: { total: number; recordCount: number; topCategory?: { name: string; value: number } };
+  rangeLabel: string;
+}
+
+const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: CategoryBreakdownProps) => {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggle = (name: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) { next.delete(name); } else { next.add(name); }
+      return next;
+    });
+
+  // Bills per category, sorted date desc
+  const billsByCategory = useMemo(() => {
+    const map: Record<string, Bill[]> = {};
+    for (const cat of byCategory) {
+      map[cat.name] = filtered
+        .filter((b) => b.category === cat.name)
+        .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+    }
+    return map;
+  }, [byCategory, filtered]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-800">Detalle por categoría</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Haz clic en una categoría para ver los registros</p>
+        </div>
+        <span className="text-xs text-gray-400 hidden sm:block">{rangeLabel}</span>
+      </div>
+
+      {/* Rows */}
+      <div className="divide-y divide-gray-50">
+        {byCategory.map((cat) => {
+          const pct      = stats.total > 0 ? (cat.value / stats.total) * 100 : 0;
+          const color    = cat.fill;
+          const isOpen   = expanded.has(cat.name);
+          const bills    = billsByCategory[cat.name] ?? [];
+
+          return (
+            <div key={cat.name}>
+              {/* ── Summary row ── */}
+              <button
+                onClick={() => toggle(cat.name)}
+                className="w-full flex items-center gap-4 px-5 py-3 text-left hover:bg-gray-50/60 transition-colors group"
+              >
+                {/* Color dot */}
+                <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+
+                {/* Name */}
+                <span className="text-sm text-gray-700 flex-1 font-medium">{cat.name}</span>
+
+                {/* Count badge */}
+                <span className="text-xs text-gray-400 tabular-nums hidden sm:block">
+                  {bills.length} registro{bills.length !== 1 ? "s" : ""}
+                </span>
+
+                {/* Mini bar */}
+                <div className="w-24 hidden sm:block">
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: color }}
+                    />
+                  </div>
+                </div>
+
+                {/* Pct */}
+                <span className="text-xs text-gray-400 w-10 text-right hidden sm:block tabular-nums">
+                  {pct.toFixed(0)}%
+                </span>
+
+                {/* Total */}
+                <span className="text-sm font-semibold text-gray-900 tabular-nums w-28 text-right">
+                  {formatCOP(cat.value)}
+                </span>
+
+                {/* Chevron */}
+                <svg
+                  className={`w-4 h-4 text-gray-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* ── Drill-down rows ── */}
+              {isOpen && (
+                <div className="bg-gray-50/50 border-t border-gray-100">
+                  {/* Sub-header */}
+                  <div className="px-5 py-2 grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_160px_auto_auto] gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                    <span>Nombre</span>
+                    <span className="hidden sm:block">Detalle</span>
+                    <span className="text-right">Fecha</span>
+                    <span className="text-right">Monto</span>
+                  </div>
+
+                  {bills.length === 0 ? (
+                    <p className="text-sm text-gray-400 px-5 py-4">Sin registros en este período.</p>
+                  ) : (
+                    bills.map((bill) => (
+                      <div
+                        key={bill._id}
+                        className="px-5 py-2.5 grid grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_160px_auto_auto] gap-4 items-center border-b border-gray-100/70 last:border-0 hover:bg-white/70 transition-colors"
+                      >
+                        {/* Name */}
+                        <span className="text-sm text-gray-700 truncate">
+                          {(bill.name ?? "").charAt(0).toUpperCase() + (bill.name ?? "").slice(1)}
+                        </span>
+
+                        {/* Detail */}
+                        <span className="text-xs text-gray-400 truncate hidden sm:block">
+                          {bill.detail ?? "—"}
+                        </span>
+
+                        {/* Date */}
+                        <span className="text-xs text-gray-500 tabular-nums text-right whitespace-nowrap">
+                          {bill.date ? fmtDateShort(bill.date) : "—"}
+                        </span>
+
+                        {/* Amount */}
+                        <span
+                          className="text-sm font-medium tabular-nums text-right"
+                          style={{ color }}
+                        >
+                          {formatCOP(bill.amount ?? 0)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+
+                  {/* Sub-total footer */}
+                  <div className="px-5 py-2 flex justify-end gap-3 items-center border-t border-gray-100 bg-white/50">
+                    <span className="text-xs text-gray-400">{bills.length} registro{bills.length !== 1 ? "s" : ""}</span>
+                    <span className="text-sm font-bold text-gray-900 tabular-nums">{formatCOP(cat.value)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
@@ -308,41 +471,12 @@ const Dashboard = () => {
 
       {/* ── Category breakdown ──────────────────────────────────────────── */}
       {byCategory.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">Detalle por categoría</h2>
-            <span className="text-xs text-gray-400">{rangeLabel}</span>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {byCategory.map((cat) => {
-              const pct = stats.total > 0 ? (cat.value / stats.total) * 100 : 0;
-              const color = getCategoryColor(cat.name);
-              return (
-                <div key={cat.name} className="flex items-center gap-4 px-5 py-3">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="text-sm text-gray-700 flex-1">{cat.name}</span>
-                  <div className="w-24 hidden sm:block">
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${pct}%`, backgroundColor: color }}
-                      />
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400 w-10 text-right hidden sm:block">
-                    {pct.toFixed(0)}%
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900 tabular-nums">
-                    {formatCOP(cat.value)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <CategoryBreakdown
+          byCategory={byCategory}
+          filtered={filtered}
+          stats={stats}
+          rangeLabel={rangeLabel}
+        />
       )}
     </div>
   );

@@ -13,6 +13,7 @@ import { useBills } from "../hooks/useBills";
 import { useIncomes } from "../hooks/useIncomes";
 import { useAuth } from "../hooks/useAuth";
 import { useCatalog } from "../hooks/useCatalog";
+import { useBudgets } from "../hooks/useBudgets";
 
 type AuthStatus = "checking" | "authenticated" | "unauthenticated";
 
@@ -23,6 +24,7 @@ const AppRoutes = () => {
   const { getBillsStore }   = useBills();
   const { getIncomesStore } = useIncomes();
   const { getCatalogStore } = useCatalog();
+  const { getBudgetsStore } = useBudgets();
 
   useEffect(() => {
     checkToken().then((valid) => {
@@ -36,6 +38,7 @@ const AppRoutes = () => {
       getBillsStore();
       getIncomesStore();
       getCatalogStore();
+      getBudgetsStore();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);

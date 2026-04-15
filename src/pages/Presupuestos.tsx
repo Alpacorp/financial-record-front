@@ -1,9 +1,11 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { useSelector } from "react-redux";
 import { Bill } from "../types/bill";
 import { getCategoryColor } from "../constants/categories";
 import { Category } from "../types/catalog";
+import { Budget } from "../store/budgets/budgetsSlice";
+import { useBudgets } from "../hooks/useBudgets";
 
 interface BillsState {
   data: Bill[];
@@ -14,21 +16,21 @@ interface CatalogState {
   categories: Category[];
 }
 
-const STORAGE_KEY = "financial_budgets";
+interface BudgetsState {
+  data: Budget[];
+  status: "idle" | "checking" | "success" | "failure";
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const formatCOP = (v: number) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
 
-const loadBudgets = (): Record<string, number> => {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}"); }
-  catch { return {}; }
-};
-
-const saveBudgets = (b: Record<string, number>) =>
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(b));
+// ─── Budget row ───────────────────────────────────────────────────────────────
 
 interface BudgetRowProps {
-  category: string; spent: number; budget: number; onEdit: (cat: string) => void;
+  category: string; spent: number; budget: number; budgetId?: string;
+  onEdit: (cat: string) => void;
 }
 
 const BudgetRow = ({ category, spent, budget, onEdit }: BudgetRowProps) => {
@@ -84,14 +86,23 @@ const BudgetRow = ({ category, spent, budget, onEdit }: BudgetRowProps) => {
   );
 };
 
+// ─── Edit modal ───────────────────────────────────────────────────────────────
+
 interface EditModalProps {
-  category: string; current: number;
+  category: string; current: number; budgetId?: string;
   onSave: (value: number) => void; onClose: () => void;
 }
 
 const EditModal = ({ category, current, onSave, onClose }: EditModalProps) => {
   const [value, setValue] = useState(current > 0 ? String(current) : "");
+  const [saving, setSaving] = useState(false);
   const color = getCategoryColor(category);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(Number(value) || 0);
+    setSaving(false);
+  };
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -109,7 +120,7 @@ const EditModal = ({ category, current, onSave, onClose }: EditModalProps) => {
           <input
             autoFocus type="number" min="0" value={value}
             onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") onSave(Number(value) || 0); }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
             placeholder="0"
             className="w-full pl-7 pr-3 py-2.5 border border-slate-600 bg-slate-800 text-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-slate-500"
           />
@@ -120,9 +131,9 @@ const EditModal = ({ category, current, onSave, onClose }: EditModalProps) => {
             className="flex-1 py-2 text-sm text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
             Cancelar
           </button>
-          <button onClick={() => onSave(Number(value) || 0)}
-            className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20">
-            Guardar
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 disabled:opacity-50 transition-colors shadow-lg shadow-indigo-500/20">
+            {saving ? "Guardando..." : "Guardar"}
           </button>
         </div>
       </div>
@@ -131,41 +142,62 @@ const EditModal = ({ category, current, onSave, onClose }: EditModalProps) => {
   );
 };
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 const Presupuestos = () => {
-  const { data, status } = useSelector((state: { bills: BillsState }) => state.bills);
-  const { categories }   = useSelector((state: { catalog: CatalogState }) => state.catalog);
-  const expenseCategories = categories.filter((c) => c.type === "gasto");
-  const [budgets, setBudgets] = useState<Record<string, number>>(loadBudgets);
+  const { data: bills, status: billsStatus } = useSelector(
+    (state: { bills: BillsState }) => state.bills
+  );
+  const { categories } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+  const { data: budgetsList, status: budgetsStatus } = useSelector(
+    (state: { budgets: BudgetsState }) => state.budgets
+  );
+  const { saveBudgetStore, deleteBudgetStore } = useBudgets();
+
   const [editing, setEditing] = useState<string | null>(null);
 
-  useEffect(() => { saveBudgets(budgets); }, [budgets]);
+  const expenseCategories = categories.filter((c) => c.type === "gasto");
+
+  // Derive budgets map: category → { amount, _id }
+  const budgetsMap = useMemo(() => {
+    const map: Record<string, { amount: number; id: string }> = {};
+    budgetsList.forEach((b) => { map[b.category] = { amount: b.amount, id: b._id }; });
+    return map;
+  }, [budgetsList]);
 
   const currentMonth = new Date().toISOString().slice(0, 7);
 
   const spentByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    data.filter((b) => b.date?.startsWith(currentMonth))
+    bills.filter((b) => b.date?.startsWith(currentMonth))
       .forEach((b) => { map[b.category] = (map[b.category] ?? 0) + (b.amount ?? 0); });
     return map;
-  }, [data, currentMonth]);
+  }, [bills, currentMonth]);
 
-  const handleSave = (value: number) => {
+  const handleSave = async (value: number) => {
     if (editing === null) return;
-    setBudgets((prev) => {
-      const next = { ...prev };
-      if (value <= 0) delete next[editing];
-      else next[editing] = value;
-      return next;
-    });
+    if (value <= 0) {
+      const existing = budgetsMap[editing];
+      if (existing) await deleteBudgetStore(existing.id);
+    } else {
+      await saveBudgetStore(editing, value);
+    }
     setEditing(null);
   };
 
-  const totalBudgeted   = Object.values(budgets).reduce((s, v) => s + v, 0);
-  const totalSpent      = Object.entries(spentByCategory).reduce((s, [, v]) => s + v, 0);
-  const categoriesOver  = expenseCategories.filter((c) => budgets[c.name] && (spentByCategory[c.name] ?? 0) > budgets[c.name]).length;
-  const budgetedCount   = Object.keys(budgets).length;
+  const totalBudgeted  = budgetsList.reduce((s, b) => s + b.amount, 0);
+  const totalSpent     = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
+  const budgetedCount  = budgetsList.length;
+  const categoriesOver = expenseCategories.filter(
+    (c) => budgetsMap[c.name] && (spentByCategory[c.name] ?? 0) > budgetsMap[c.name].amount
+  ).length;
 
-  if (status === "idle" || status === "checking") {
+  const loading = billsStatus === "idle" || billsStatus === "checking"
+    || budgetsStatus === "idle" || budgetsStatus === "checking";
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
         <svg className="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
@@ -180,6 +212,7 @@ const Presupuestos = () => {
 
   return (
     <div className="space-y-6">
+      {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Presupuestado</p>
@@ -200,6 +233,7 @@ const Presupuestos = () => {
         </div>
       </div>
 
+      {/* Table */}
       <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg">
         <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
           <div>
@@ -207,22 +241,45 @@ const Presupuestos = () => {
             <p className="text-xs text-slate-600 mt-0.5 capitalize">{monthLabel}</p>
           </div>
           <p className="text-xs text-slate-600">
-            Haz clic en <svg className="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            Haz clic en{" "}
+            <svg className="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg> para configurar
+            </svg>{" "}
+            para configurar
           </p>
         </div>
         <div>
-          {expenseCategories.map((cat) => (
-            <BudgetRow key={cat._id} category={cat.name}
-              spent={spentByCategory[cat.name] ?? 0} budget={budgets[cat.name] ?? 0} onEdit={setEditing} />
-          ))}
+          {expenseCategories.length === 0 ? (
+            <p className="text-sm text-slate-600 px-5 py-8 text-center">
+              No hay categorías de gastos.{" "}
+              <a href="/configuracion" className="text-indigo-400 hover:underline">
+                Agrégalas en Configuración.
+              </a>
+            </p>
+          ) : (
+            expenseCategories.map((cat) => (
+              <BudgetRow
+                key={cat._id}
+                category={cat.name}
+                spent={spentByCategory[cat.name] ?? 0}
+                budget={budgetsMap[cat.name]?.amount ?? 0}
+                budgetId={budgetsMap[cat.name]?.id}
+                onEdit={setEditing}
+              />
+            ))
+          )}
         </div>
       </div>
 
+      {/* Edit modal */}
       {editing && (
-        <EditModal category={editing} current={budgets[editing] ?? 0}
-          onSave={handleSave} onClose={() => setEditing(null)} />
+        <EditModal
+          category={editing}
+          current={budgetsMap[editing]?.amount ?? 0}
+          budgetId={budgetsMap[editing]?.id}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );

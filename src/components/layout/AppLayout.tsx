@@ -10,7 +10,12 @@ const getSessionName = (): string => {
   try {
     const token = localStorage.getItem("x-token");
     if (!token) return "";
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    // Proper UTF-8 decode — atob() alone breaks accented characters
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const jsonStr = decodeURIComponent(
+      atob(base64).split("").map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")
+    );
+    const payload = JSON.parse(jsonStr);
     return typeof payload.name === "string" ? payload.name : "";
   } catch {
     return "";

@@ -9,14 +9,17 @@ import Ingresos from "../pages/Ingresos";
 import AccessGate from "../components/auth/AccessGate";
 import AppLayout from "../components/layout/AppLayout";
 import { useBills } from "../hooks/useBills";
+import { useIncomes } from "../hooks/useIncomes";
 
 const AppRoutes = () => {
   const [authenticated, setAuthenticated] = useState(false);
   const { getBillsStore } = useBills();
+  const { getIncomesStore } = useIncomes();
 
   useEffect(() => {
     if (authenticated) {
       getBillsStore();
+      getIncomesStore();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated]);

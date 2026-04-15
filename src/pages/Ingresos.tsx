@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { INGRESOS_MOCK, INCOME_CATEGORIES, type Ingreso } from "../mocks/ingresosMock";
+import { useSelector } from "react-redux";
+import { INCOME_CATEGORIES, type Ingreso } from "../mocks/ingresosMock";
+import { useIncomes, type IncomePayload } from "../hooks/useIncomes";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -24,29 +26,34 @@ const PAYMETHODS = ["Transferencia", "Nequi", "Daviplata", "Efectivo", "Débito"
 
 const getIncomeColor = (cat: string) => INCOME_COLORS[cat] ?? "#9ca3af";
 
-const today = () => {
+const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface IncomesState {
+  data: Ingreso[];
+  status: "idle" | "checking" | "success" | "failure";
+}
+
 type IngresoFormValues = Omit<Ingreso, "_id">;
 
 type FormErrors = Partial<Record<keyof IngresoFormValues, string>>;
 
 const EMPTY: IngresoFormValues = {
-  name: "", category: "", detail: "", amount: 0, date: today(), paymethod: "",
+  name: "", category: "", detail: "", amount: 0, date: todayStr(), paymethod: "",
 };
 
 const validate = (f: IngresoFormValues): FormErrors => {
   const e: FormErrors = {};
-  if (!f.name.trim())        e.name      = "El nombre es obligatorio";
-  if (!f.category)           e.category  = "Selecciona una categoría";
-  if (!f.detail.trim())      e.detail    = "El detalle es obligatorio";
-  if (!f.amount || f.amount <= 0) e.amount = "El monto debe ser mayor a $0";
-  if (!f.date)               e.date      = "La fecha es obligatoria";
-  if (!f.paymethod)          e.paymethod = "Selecciona un método";
+  if (!f.name.trim())           e.name      = "El nombre es obligatorio";
+  if (!f.category)              e.category  = "Selecciona una categoría";
+  if (!f.detail.trim())         e.detail    = "El detalle es obligatorio";
+  if (!f.amount || f.amount <= 0) e.amount  = "El monto debe ser mayor a $0";
+  if (!f.date)                  e.date      = "La fecha es obligatoria";
+  if (!f.paymethod)             e.paymethod = "Selecciona un método";
   return e;
 };
 
@@ -62,9 +69,9 @@ const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 
 // ─── Income form ─────────────────────────────────────────────────────────────
 
-const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
-  const [form, setForm]         = useState<IngresoFormValues>(EMPTY);
-  const [errors, setErrors]     = useState<FormErrors>({});
+const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> }) => {
+  const [form, setForm]           = useState<IngresoFormValues>(EMPTY);
+  const [errors, setErrors]       = useState<FormErrors>({});
   const [collapsed, setCollapsed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -79,17 +86,18 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
     setErrors((p) => ({ ...p, [e.target.name]: errs[e.target.name as keyof IngresoFormValues] }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate(form);
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setSubmitting(true);
-    setTimeout(() => {          // simula latencia de red
-      onAdd(form);
-      setForm({ ...EMPTY, date: today() });
+    try {
+      await onAdd(form);
+      setForm({ ...EMPTY, date: todayStr() });
       setErrors({});
+    } finally {
       setSubmitting(false);
-    }, 300);
+    }
   };
 
   return (
@@ -249,16 +257,25 @@ const StatCard = ({ label, value, sub, accent = false }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Ingresos = () => {
-  const [records, setRecords]       = useState<Ingreso[]>(INGRESOS_MOCK);
+  const { data: records, status } = useSelector(
+    (state: { incomes: IncomesState }) => state.incomes
+  );
+  const { createIncomeStore } = useIncomes();
+
   const [filterCategory, setFilter] = useState("");
   const [search, setSearch]         = useState("");
 
-  const handleAdd = (values: IngresoFormValues) => {
-    const newRecord: Ingreso = {
-      ...values,
-      _id: `local_${Date.now()}`,
+  const handleAdd = async (values: IngresoFormValues): Promise<void> => {
+    const payload: IncomePayload = {
+      concept:   values.name,
+      category:  values.category,
+      detail:    values.detail,
+      amount:    values.amount,
+      date:      values.date,
+      channel:   values.paymethod,
+      paymethod: values.paymethod,
     };
-    setRecords((prev) => [newRecord, ...prev]);
+    await createIncomeStore(payload);
   };
 
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -296,17 +313,21 @@ const Ingresos = () => {
   }, [records, filterCategory, search]);
 
   const monthLabel = new Date().toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const loading    = status === "idle" || status === "checking";
+
+  if (loading && records.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <svg className="animate-spin w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-
-      {/* Mock banner */}
-      <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Datos de ejemplo — los registros nuevos se perderán al recargar hasta integrar el backend.
-      </div>
 
       {/* Form */}
       <IncomeForm onAdd={handleAdd} />
@@ -338,7 +359,9 @@ const Ingresos = () => {
             </div>
             <span className="text-sm font-semibold text-gray-800">
               Registro de ingresos
-              <span className="ml-2 text-xs text-gray-400 font-normal">{rows.length} resultado{rows.length !== 1 ? "s" : ""}</span>
+              <span className="ml-2 text-xs text-gray-400 font-normal">
+                {rows.length} resultado{rows.length !== 1 ? "s" : ""}
+              </span>
             </span>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">

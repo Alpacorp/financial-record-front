@@ -1,33 +1,73 @@
 import React, { useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import billsApi from "../../apis/billsApi";
+import axios from "axios";
 
 interface AccessGateProps {
   onAccess: () => void;
 }
 
+type Mode = "login" | "register";
+
 const AccessGate = ({ onAccess }: AccessGateProps) => {
   const { login } = useAuth();
 
+  const [mode, setMode]               = useState<Mode>("login");
+  const [name, setName]               = useState("");
   const [email, setEmail]             = useState("");
   const [password, setPassword]       = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [loading, setLoading]         = useState(false);
 
+  const reset = (next: Mode) => {
+    setMode(next);
+    setName(""); setEmail(""); setPassword("");
+    setError(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const result = await login(email, password);
-
-    if (result.ok) {
-      onAccess();
+    if (mode === "login") {
+      const result = await login(email, password);
+      if (result.ok) {
+        onAccess();
+      } else {
+        setError(result.error ?? "Credenciales incorrectas");
+        setLoading(false);
+      }
     } else {
-      setError(result.error ?? "Credenciales incorrectas");
-      setLoading(false);
+      try {
+        await billsApi.post("/auth/new", { name, email, password });
+        // Auto-login after registration
+        const result = await login(email, password);
+        if (result.ok) {
+          onAccess();
+        } else {
+          setError("Cuenta creada. Inicia sesión.");
+          reset("login");
+          setLoading(false);
+        }
+      } catch (err: unknown) {
+        const msg =
+          axios.isAxiosError(err) && err.response?.data?.msg
+            ? err.response.data.msg
+            : "Error al crear la cuenta";
+        setError(msg);
+        setLoading(false);
+      }
     }
   };
+
+  const inputClass = (hasError: boolean) =>
+    `w-full px-4 py-3 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+      hasError
+        ? "border-red-400 bg-red-50"
+        : "border-gray-300 bg-gray-50 focus:bg-white"
+    }`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex items-center justify-center p-4">
@@ -51,10 +91,35 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
 
           {/* Form */}
           <div className="px-8 py-8">
-            <h2 className="text-gray-800 font-semibold text-lg mb-1">Bienvenido</h2>
-            <p className="text-gray-500 text-sm mb-6">Ingresa tus credenciales para continuar</p>
+            <h2 className="text-gray-800 font-semibold text-lg mb-1">
+              {mode === "login" ? "Bienvenido" : "Crear cuenta"}
+            </h2>
+            <p className="text-gray-500 text-sm mb-6">
+              {mode === "login"
+                ? "Ingresa tus credenciales para continuar"
+                : "Completa los datos para registrarte"}
+            </p>
 
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
+
+              {/* Name (register only) */}
+              {mode === "register" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Nombre
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); setError(null); }}
+                    className={inputClass(!!error)}
+                    placeholder="Tu nombre"
+                    autoComplete="name"
+                    autoFocus
+                    required
+                  />
+                </div>
+              )}
 
               {/* Email */}
               <div>
@@ -65,12 +130,10 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError(null); }}
-                  className={`w-full px-4 py-3 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                    error ? "border-red-400 bg-red-50" : "border-gray-300 bg-gray-50 focus:bg-white"
-                  }`}
+                  className={inputClass(!!error)}
                   placeholder="usuario@correo.com"
                   autoComplete="email"
-                  autoFocus
+                  autoFocus={mode === "login"}
                   required
                 />
               </div>
@@ -78,18 +141,16 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
               {/* Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Contraseña
+                  Contraseña {mode === "register" && <span className="text-gray-400 font-normal">(mín. 6 caracteres)</span>}
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(null); }}
-                    className={`w-full px-4 py-3 pr-12 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                      error ? "border-red-400 bg-red-50" : "border-gray-300 bg-gray-50 focus:bg-white"
-                    }`}
+                    className={`${inputClass(!!error)} pr-12`}
                     placeholder="••••••••"
-                    autoComplete="current-password"
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
                     required
                   />
                   <button
@@ -125,7 +186,7 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading || !email || !password}
+                disabled={loading || !email || !password || (mode === "register" && !name)}
                 className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? (
@@ -134,12 +195,39 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Verificando...
+                    {mode === "login" ? "Verificando..." : "Creando cuenta..."}
                   </>
                 ) : (
-                  "Ingresar"
+                  mode === "login" ? "Ingresar" : "Crear cuenta e ingresar"
                 )}
               </button>
+
+              {/* Mode toggle */}
+              <p className="text-center text-sm text-gray-500 pt-1">
+                {mode === "login" ? (
+                  <>
+                    ¿No tienes cuenta?{" "}
+                    <button
+                      type="button"
+                      onClick={() => reset("register")}
+                      className="text-indigo-600 font-medium hover:text-indigo-700 hover:underline transition-colors"
+                    >
+                      Regístrate
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    ¿Ya tienes cuenta?{" "}
+                    <button
+                      type="button"
+                      onClick={() => reset("login")}
+                      className="text-indigo-600 font-medium hover:text-indigo-700 hover:underline transition-colors"
+                    >
+                      Inicia sesión
+                    </button>
+                  </>
+                )}
+              </p>
             </form>
           </div>
         </div>

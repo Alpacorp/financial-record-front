@@ -1,82 +1,159 @@
 import React, { useState } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import billsApi from "../../apis/billsApi";
+import axios from "axios";
 
 interface AccessGateProps {
   onAccess: () => void;
 }
 
+type Mode = "login" | "register";
+
 const AccessGate = ({ onAccess }: AccessGateProps) => {
-  const [password, setPassword] = useState("");
+  const { login } = useAuth();
+
+  const [mode, setMode]               = useState<Mode>("login");
+  const [name, setName]               = useState("");
+  const [email, setEmail]             = useState("");
+  const [password, setPassword]       = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [loading, setLoading]         = useState(false);
 
-  const accessValue = import.meta.env.VITE_CONTENT;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      if (password === accessValue) {
-        onAccess();
-      } else {
-        setError(true);
-        setLoading(false);
-        setTimeout(() => setError(false), 3000);
-      }
-    }, 400);
+  const reset = (next: Mode) => {
+    setMode(next);
+    setName(""); setEmail(""); setPassword("");
+    setError(null);
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    if (mode === "login") {
+      const result = await login(email, password);
+      if (result.ok) {
+        onAccess();
+      } else {
+        setError(result.error ?? "Credenciales incorrectas");
+        setLoading(false);
+      }
+    } else {
+      try {
+        await billsApi.post("/auth/new", { name, email, password });
+        const result = await login(email, password);
+        if (result.ok) {
+          onAccess();
+        } else {
+          setError("Cuenta creada. Inicia sesión.");
+          reset("login");
+          setLoading(false);
+        }
+      } catch (err: unknown) {
+        const msg =
+          axios.isAxiosError(err) && err.response?.data?.msg
+            ? err.response.data.msg
+            : "Error al crear la cuenta";
+        setError(msg);
+        setLoading(false);
+      }
+    }
+  };
+
+  const inputClass = (hasError: boolean) =>
+    `w-full px-4 py-3 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-slate-800 text-slate-100 placeholder-slate-500 ${
+      hasError ? "border-red-500/60" : "border-slate-700 focus:border-indigo-500"
+    }`;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          {/* Header band */}
-          <div className="bg-indigo-600 px-8 py-6">
+        <div className="bg-slate-900 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden border border-slate-800">
+
+          {/* Header */}
+          <div className="px-8 py-7 border-b border-slate-800">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">Financial Record</h1>
-                <p className="text-indigo-200 text-xs">Control de gastos personales</p>
+                <h1 className="text-xl font-bold text-slate-100 tracking-tight">Financial Record</h1>
+                <p className="text-slate-500 text-xs">Control de gastos personales</p>
               </div>
             </div>
           </div>
 
           {/* Form */}
           <div className="px-8 py-8">
-            <h2 className="text-gray-800 font-semibold text-lg mb-1">Bienvenido</h2>
-            <p className="text-gray-500 text-sm mb-6">Ingresa tu contraseña para continuar</p>
+            <h2 className="text-slate-100 font-semibold text-lg mb-1">
+              {mode === "login" ? "Bienvenido" : "Crear cuenta"}
+            </h2>
+            <p className="text-slate-500 text-sm mb-6">
+              {mode === "login"
+                ? "Ingresa tus credenciales para continuar"
+                : "Completa los datos para registrarte"}
+            </p>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+
+              {/* Name (register only) */}
+              {mode === "register" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                    Nombre
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); setError(null); }}
+                    className={inputClass(!!error)}
+                    placeholder="Tu nombre"
+                    autoComplete="name"
+                    autoFocus
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Contraseña de acceso
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                  Correo electrónico
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                  className={inputClass(!!error)}
+                  placeholder="usuario@correo.com"
+                  autoComplete="email"
+                  autoFocus={mode === "login"}
+                  required
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                  Contraseña {mode === "register" && <span className="text-slate-600 font-normal normal-case">(mín. 6 caracteres)</span>}
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (error) setError(false);
-                    }}
-                    className={`w-full px-4 py-3 pr-12 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                      error
-                        ? "border-red-400 bg-red-50 text-red-700"
-                        : "border-gray-300 bg-gray-50 focus:bg-white"
-                    }`}
+                    onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                    className={`${inputClass(!!error)} pr-12`}
                     placeholder="••••••••"
-                    autoFocus
+                    autoComplete={mode === "login" ? "current-password" : "new-password"}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
                     tabIndex={-1}
                   >
                     {showPassword ? (
@@ -91,20 +168,23 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
                     )}
                   </button>
                 </div>
-                {error && (
-                  <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    Contraseña incorrecta. Inténtalo de nuevo.
-                  </p>
-                )}
               </div>
 
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 text-sm">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {error}
+                </div>
+              )}
+
+              {/* Submit */}
               <button
                 type="submit"
-                disabled={loading || !password}
-                className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                disabled={loading || !email || !password || (mode === "register" && !name)}
+                className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 flex items-center justify-center gap-2 mt-2 shadow-lg shadow-indigo-500/20"
               >
                 {loading ? (
                   <>
@@ -112,17 +192,44 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Verificando...
+                    {mode === "login" ? "Verificando..." : "Creando cuenta..."}
                   </>
                 ) : (
-                  "Ingresar"
+                  mode === "login" ? "Ingresar" : "Crear cuenta e ingresar"
                 )}
               </button>
+
+              {/* Mode toggle */}
+              <p className="text-center text-sm text-slate-500 pt-1">
+                {mode === "login" ? (
+                  <>
+                    ¿No tienes cuenta?{" "}
+                    <button
+                      type="button"
+                      onClick={() => reset("register")}
+                      className="text-indigo-400 font-medium hover:text-indigo-300 hover:underline transition-colors"
+                    >
+                      Regístrate
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    ¿Ya tienes cuenta?{" "}
+                    <button
+                      type="button"
+                      onClick={() => reset("login")}
+                      className="text-indigo-400 font-medium hover:text-indigo-300 hover:underline transition-colors"
+                    >
+                      Inicia sesión
+                    </button>
+                  </>
+                )}
+              </p>
             </form>
           </div>
         </div>
 
-        <p className="text-center text-slate-500 text-xs mt-6">
+        <p className="text-center text-slate-700 text-xs mt-6">
           Financial Record · Gestión de gastos personales
         </p>
       </div>

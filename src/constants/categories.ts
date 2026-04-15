@@ -17,55 +17,17 @@ const PALETTE = [
   "#64748b", // slate
   "#0ea5e9", // sky
   "#d946ef", // fuchsia
-  "#f97316", // orange (repeat)
-  "#10b981", // emerald (repeat)
 ] as const;
 
-export const EXPENSE_CATEGORIES = [
-  "Apoyo Mamá",
-  "Apoyo Papá",
-  "Arriendo",
-  "Carro",
-  "Comida",
-  "Cuotas",
-  "Diversión",
-  "Educación",
-  "Hogar",
-  "Impuestos",
-  "Inversiones",
-  "Mercado",
-  "Plataformas Web",
-  "Préstamos",
-  "Ropa",
-  "Salud",
-  "Servicios Públicos",
-  "Servicios Streaming",
-  "Trabajo",
-  "Transporte",
-] as const;
+/** Hash determinista del nombre → color estable sin importar el orden de la lista. */
+const hashName = (name: string): number => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = Math.imul(31, h) + name.charCodeAt(i);
+  }
+  return Math.abs(h);
+};
 
-/** Color hex asignado a cada categoría — consistente en toda la app. */
-export const CATEGORY_COLOR: Record<string, string> = Object.fromEntries(
-  EXPENSE_CATEGORIES.map((cat, i) => [cat, PALETTE[i % PALETTE.length]])
-);
-
-/** Devuelve el color hex de una categoría, o gris si no existe en el catálogo. */
+/** Color hex de una categoría — estable por nombre, consistente en toda la app. */
 export const getCategoryColor = (category: string): string =>
-  CATEGORY_COLOR[category] ?? "#9ca3af";
-
-export const CASH_PAYMETHODS = [
-  "Efectivo",
-  "Débito",
-  "Débito Davivienda",
-  "Nequi",
-  "Daviplata",
-  "Rappy Cuenta",
-] as const;
-
-export const CREDIT_PAYMETHODS = [
-  "TC Davivienda",
-  "Daviplata",
-  "Nu",
-  "Rappy",
-  "Rappy 2",
-] as const;
+  PALETTE[hashName(category) % PALETTE.length] ?? "#9ca3af";

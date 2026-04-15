@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { INGRESOS_MOCK, INCOME_CATEGORIES, type Ingreso } from "../mocks/ingresosMock";
+import { useSelector } from "react-redux";
+import { type Ingreso } from "../mocks/ingresosMock";
+import { useIncomes, type IncomePayload } from "../hooks/useIncomes";
+import { Category, PayChannel } from "../types/catalog";
+import CatalogEmptyWarning from "../components/CatalogEmptyWarning";
+
+interface CatalogState {
+  categories: Category[];
+  payChannels: PayChannel[];
+  status: "idle" | "checking" | "success" | "failure";
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -20,51 +30,67 @@ const INCOME_COLORS: Record<string, string> = {
   "Otro":          "#9ca3af",
 };
 
-const PAYMETHODS = ["Transferencia", "Nequi", "Daviplata", "Efectivo", "Débito", "Cheque"];
 
 const getIncomeColor = (cat: string) => INCOME_COLORS[cat] ?? "#9ca3af";
 
-const today = () => {
+const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface IncomesState {
+  data: Ingreso[];
+  status: "idle" | "checking" | "success" | "failure";
+}
+
 type IngresoFormValues = Omit<Ingreso, "_id">;
 
 type FormErrors = Partial<Record<keyof IngresoFormValues, string>>;
 
 const EMPTY: IngresoFormValues = {
-  name: "", category: "", detail: "", amount: 0, date: today(), paymethod: "",
+  name: "", category: "", detail: "", amount: 0, date: todayStr(), paymethod: "",
 };
 
 const validate = (f: IngresoFormValues): FormErrors => {
   const e: FormErrors = {};
-  if (!f.name.trim())        e.name      = "El nombre es obligatorio";
-  if (!f.category)           e.category  = "Selecciona una categoría";
-  if (!f.detail.trim())      e.detail    = "El detalle es obligatorio";
-  if (!f.amount || f.amount <= 0) e.amount = "El monto debe ser mayor a $0";
-  if (!f.date)               e.date      = "La fecha es obligatoria";
-  if (!f.paymethod)          e.paymethod = "Selecciona un método";
+  if (!f.name.trim())           e.name      = "El nombre es obligatorio";
+  if (!f.category)              e.category  = "Selecciona una categoría";
+  if (!f.detail.trim())         e.detail    = "El detalle es obligatorio";
+  if (!f.amount || f.amount <= 0) e.amount  = "El monto debe ser mayor a $0";
+  if (!f.date)                  e.date      = "La fecha es obligatoria";
+  if (!f.paymethod)             e.paymethod = "Selecciona un método";
   return e;
 };
 
-const labelClass = "block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1";
-const inputBase  = "w-full px-3 py-2.5 rounded-lg border text-sm text-gray-900 focus:outline-none focus:ring-2 focus:border-transparent transition-colors placeholder-gray-400";
-const inputOk    = "border-gray-300 bg-gray-50 focus:ring-emerald-500 focus:bg-white";
-const inputErr   = "border-red-400 bg-red-50 focus:ring-red-400";
+const labelClass = "block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1";
+const inputBase  = "w-full px-3 py-2.5 rounded-lg border text-sm text-slate-100 bg-slate-800 focus:outline-none focus:ring-2 focus:border-transparent transition-colors placeholder-slate-500";
+const inputOk    = "border-slate-600 focus:ring-emerald-500";
+const inputErr   = "border-red-500/60 bg-red-500/5 focus:ring-red-500";
 const fieldClass = (err?: string) => `${inputBase} ${err ? inputErr : inputOk}`;
 const FieldError = ({ msg }: { msg?: string }) =>
-  msg ? <p className="text-xs text-red-500 mt-1">{msg}</p> : null;
+  msg ? <p className="text-xs text-red-400 mt-1">{msg}</p> : null;
 
 const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
 // ─── Income form ─────────────────────────────────────────────────────────────
 
-const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
-  const [form, setForm]         = useState<IngresoFormValues>(EMPTY);
-  const [errors, setErrors]     = useState<FormErrors>({});
+const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> }) => {
+  const { categories, payChannels, status: catalogStatus } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+  const incomeCategories = categories.filter((c) => c.type === "ingreso");
+  const allPaymethods    = payChannels;
+
+  const catalogLoaded = catalogStatus === "success";
+  const missingItems = catalogLoaded ? [
+    ...(incomeCategories.length === 0 ? ["categorías de ingresos"] : []),
+    ...(allPaymethods.length === 0    ? ["métodos de pago"]        : []),
+  ] : [];
+
+  const [form, setForm]           = useState<IngresoFormValues>(EMPTY);
+  const [errors, setErrors]       = useState<FormErrors>({});
   const [collapsed, setCollapsed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -79,36 +105,37 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
     setErrors((p) => ({ ...p, [e.target.name]: errs[e.target.name as keyof IngresoFormValues] }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate(form);
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setSubmitting(true);
-    setTimeout(() => {          // simula latencia de red
-      onAdd(form);
-      setForm({ ...EMPTY, date: today() });
+    try {
+      await onAdd(form);
+      setForm({ ...EMPTY, date: todayStr() });
       setErrors({});
+    } finally {
       setSubmitting(false);
-    }, 300);
+    }
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center justify-between px-6 py-4 text-left"
       >
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-emerald-50 rounded-lg flex items-center justify-center">
-            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="w-7 h-7 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+            <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </div>
-          <span className="font-semibold text-gray-800 text-sm">Registrar Ingreso</span>
+          <span className="font-semibold text-slate-200 text-sm">Registrar Ingreso</span>
         </div>
         <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+          className={`w-4 h-4 text-slate-500 transition-transform ${collapsed ? "-rotate-90" : ""}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -117,7 +144,8 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
 
       {!collapsed && (
         <form onSubmit={handleSubmit} noValidate className="px-6 pb-6">
-          <div className="h-px bg-gray-100 mb-5" />
+          <div className="h-px bg-slate-800 mb-5" />
+          <CatalogEmptyWarning missing={missingItems} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Nombre */}
@@ -143,7 +171,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
                 onChange={handleChange} onBlur={handleBlur}
               >
                 <option value="">Selecciona una categoría</option>
-                {INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {incomeCategories.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
               </select>
               <FieldError msg={errors.category} />
             </div>
@@ -165,7 +193,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
             <div>
               <label className={labelClass}>Monto (COP)</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
                 <input
                   className={`${fieldClass(errors.amount)} pl-7`}
                   type="number" name="amount" min="1"
@@ -198,7 +226,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
                 onChange={handleChange} onBlur={handleBlur}
               >
                 <option value="">Selecciona un método</option>
-                {PAYMETHODS.map((p) => <option key={p} value={p}>{p}</option>)}
+                {allPaymethods.map((p) => <option key={p._id} value={p.name}>{p.name}</option>)}
               </select>
               <FieldError msg={errors.paymethod} />
             </div>
@@ -208,7 +236,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 flex items-center gap-2"
+              className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900 flex items-center gap-2 shadow-lg shadow-emerald-500/20"
             >
               {submitting ? (
                 <>
@@ -239,26 +267,39 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => void }) => {
 const StatCard = ({ label, value, sub, accent = false }: {
   label: string; value: string; sub?: string; accent?: boolean;
 }) => (
-  <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
-    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
-    <p className={`text-2xl font-bold mt-1 ${accent ? "text-emerald-600" : "text-gray-900"}`}>{value}</p>
-    {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+  <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
+    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
+    <p className={`text-2xl font-bold mt-1 ${accent ? "text-emerald-400" : "text-slate-100"}`}>{value}</p>
+    {sub && <p className="text-xs text-slate-600 mt-0.5">{sub}</p>}
   </div>
 );
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Ingresos = () => {
-  const [records, setRecords]       = useState<Ingreso[]>(INGRESOS_MOCK);
+  const { data: records, status } = useSelector(
+    (state: { incomes: IncomesState }) => state.incomes
+  );
+  const { categories } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+  const incomeCategories = categories.filter((c) => c.type === "ingreso");
+  const { createIncomeStore } = useIncomes();
+
   const [filterCategory, setFilter] = useState("");
   const [search, setSearch]         = useState("");
 
-  const handleAdd = (values: IngresoFormValues) => {
-    const newRecord: Ingreso = {
-      ...values,
-      _id: `local_${Date.now()}`,
+  const handleAdd = async (values: IngresoFormValues): Promise<void> => {
+    const payload: IncomePayload = {
+      concept:   values.name,
+      category:  values.category,
+      detail:    values.detail,
+      amount:    values.amount,
+      date:      values.date,
+      channel:   values.paymethod,
+      paymethod: values.paymethod,
     };
-    setRecords((prev) => [newRecord, ...prev]);
+    await createIncomeStore(payload);
   };
 
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -296,17 +337,21 @@ const Ingresos = () => {
   }, [records, filterCategory, search]);
 
   const monthLabel = new Date().toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const loading    = status === "idle" || status === "checking";
+
+  if (loading && records.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <svg className="animate-spin w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-
-      {/* Mock banner */}
-      <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Datos de ejemplo — los registros nuevos se perderán al recargar hasta integrar el backend.
-      </div>
 
       {/* Form */}
       <IncomeForm onAdd={handleAdd} />
@@ -327,70 +372,60 @@ const Ingresos = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg">
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-4 border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-emerald-50 rounded flex items-center justify-center">
-              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-6 h-6 bg-emerald-500/10 rounded flex items-center justify-center">
+              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-gray-800">
+            <span className="text-sm font-semibold text-slate-200">
               Registro de ingresos
-              <span className="ml-2 text-xs text-gray-400 font-normal">{rows.length} resultado{rows.length !== 1 ? "s" : ""}</span>
+              <span className="ml-2 text-xs text-slate-500 font-normal">
+                {rows.length} resultado{rows.length !== 1 ? "s" : ""}
+              </span>
             </span>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:flex-none">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <input
-                type="text" value={search}
-                onChange={(e) => setSearch(e.target.value)}
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar..."
-                className="pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white w-full sm:w-48 transition-colors"
-              />
+                className="pl-9 pr-3 py-2 text-sm border border-slate-700 rounded-lg bg-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 w-full sm:w-48 transition-colors" />
             </div>
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
+            <select value={filterCategory} onChange={(e) => setFilter(e.target.value)}
+              className="text-sm border border-slate-700 rounded-lg px-3 py-2 bg-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="">Todas las categorías</option>
-              {INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {incomeCategories.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
         </div>
 
         {/* Rows */}
         {rows.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 text-sm">No hay registros</div>
+          <div className="text-center py-16 text-slate-600 text-sm">No hay registros</div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-slate-800">
             {rows.map((inc) => {
               const color = getIncomeColor(inc.category);
               return (
-                <div key={inc._id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+                <div key={inc._id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-800/40 transition-colors">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{inc.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{inc.detail}</p>
+                    <p className="text-sm font-medium text-slate-100 truncate">{inc.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{inc.detail}</p>
                   </div>
-                  <span
-                    className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
-                    style={{ backgroundColor: `${color}18`, color }}
-                  >
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
+                    style={{ backgroundColor: `${color}20`, color }}>
                     {inc.category}
                   </span>
-                  <span className="text-xs text-gray-400 hidden md:block w-28 text-right flex-shrink-0">
-                    {inc.paymethod}
-                  </span>
-                  <span className="text-xs text-gray-400 font-mono w-24 text-right flex-shrink-0">
-                    {inc.date}
-                  </span>
-                  <span className="text-sm font-bold text-emerald-600 tabular-nums w-32 text-right flex-shrink-0">
+                  <span className="text-xs text-slate-500 hidden md:block w-28 text-right flex-shrink-0">{inc.paymethod}</span>
+                  <span className="text-xs text-slate-500 font-mono w-24 text-right flex-shrink-0">{inc.date}</span>
+                  <span className="text-sm font-bold text-emerald-400 tabular-nums w-32 text-right flex-shrink-0">
                     +{formatCOP(inc.amount)}
                   </span>
                 </div>

@@ -7,4 +7,13 @@ const billsApi = axios.create({
       : import.meta.env.VITE_URL_PROD,
 });
 
+// Attach JWT on every request if present
+billsApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem("x-token");
+  if (token) {
+    config.headers["x-token"] = token;
+  }
+  return config;
+});
+
 export default billsApi;

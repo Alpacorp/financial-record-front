@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
+import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
-import {
-  EXPENSE_CATEGORIES,
-  CASH_PAYMETHODS,
-  CREDIT_PAYMETHODS,
-} from "../../constants/categories";
+import { Category, PayChannel } from "../../types/catalog";
+import CatalogEmptyWarning from "../CatalogEmptyWarning";
+
+interface CatalogState {
+  categories: Category[];
+  payChannels: PayChannel[];
+  status: "idle" | "checking" | "success" | "failure";
+}
 
 interface EditBillModalProps {
   bill: Bill | null;
@@ -14,13 +18,12 @@ interface EditBillModalProps {
 }
 
 const inputClass =
-  "w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:bg-white transition-colors";
+  "w-full px-3 py-2.5 rounded-lg border border-slate-600 bg-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors placeholder-slate-500";
 
-const labelClass =
-  "block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1";
+const labelClass = "block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1";
 
 const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
-  const [form, setForm] = useState<BillFormValues | null>(null);
+  const [form, setForm]     = useState<BillFormValues | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -30,21 +33,30 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
     }
   }, [bill]);
 
+  const { categories, payChannels, status: catalogStatus } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+
   if (!bill || !form) return null;
 
-  const paymentMethods =
-    form.type === "Contado" ? CASH_PAYMETHODS : CREDIT_PAYMETHODS;
+  const expenseCategories = categories.filter((c) => c.type === "gasto");
+  const paymentMethods = payChannels.filter((p) =>
+    form.type === "Contado" ? p.type === "contado" : p.type === "credito"
+  );
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const catalogLoaded = catalogStatus === "success";
+  const missingItems = catalogLoaded ? [
+    ...(expenseCategories.length === 0 ? ["categorías de gastos"] : []),
+    ...(paymentMethods.length === 0
+      ? [`métodos de pago de ${form.type === "Contado" ? "contado" : "crédito"}`]
+      : []),
+  ] : [];
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setForm((prev) => {
       if (!prev) return prev;
-      const next = {
-        ...prev,
-        [name]: name === "amount" || name === "dues" ? Number(value) || 0 : value,
-      };
+      const next = { ...prev, [name]: name === "amount" || name === "dues" ? Number(value) || 0 : value };
       if (name === "type") next.paymethod = "";
       return next;
     });
@@ -62,26 +74,17 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
     }
   };
 
-  const capitalize = (str: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+  const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-screen overflow-y-auto">
+      <div className="relative bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 w-full max-w-xl max-h-screen overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">Editar gasto</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h2 className="text-base font-semibold text-slate-100">Editar gasto</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -90,97 +93,54 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
+          <CatalogEmptyWarning missing={missingItems} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Nombre */}
+
             <div>
               <label className={labelClass}>Nombre</label>
-              <input
-                className={inputClass}
-                type="text"
-                name="name"
-                value={capitalize(form.name)}
-                onChange={handleChange}
-                required
-              />
+              <input className={inputClass} type="text" name="name"
+                value={capitalize(form.name)} onChange={handleChange} required />
             </div>
 
-            {/* Categoría */}
             <div>
               <label className={labelClass}>Categoría</label>
-              <select
-                className={inputClass}
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-                required
-              >
+              <select className={inputClass} name="category" value={form.category} onChange={handleChange} required>
                 <option value="">Selecciona una categoría</option>
-                {EXPENSE_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
               </select>
             </div>
 
-            {/* Detalle */}
             <div className="sm:col-span-2">
               <label className={labelClass}>Detalle</label>
-              <input
-                className={inputClass}
-                type="text"
-                name="detail"
-                value={capitalize(form.detail)}
-                onChange={handleChange}
-                required
-              />
+              <input className={inputClass} type="text" name="detail"
+                value={capitalize(form.detail)} onChange={handleChange} required />
             </div>
 
-            {/* Monto */}
             <div>
               <label className={labelClass}>Monto (COP)</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                <input
-                  className={`${inputClass} pl-7`}
-                  type="number"
-                  name="amount"
-                  value={form.amount || ""}
-                  onChange={handleChange}
-                  min="0"
-                  required
-                />
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+                <input className={`${inputClass} pl-7`} type="number" name="amount"
+                  value={form.amount || ""} onChange={handleChange} min="0" required />
               </div>
             </div>
 
-            {/* Fecha */}
             <div>
               <label className={labelClass}>Fecha</label>
-              <input
-                className={inputClass}
-                type="date"
-                name="date"
-                value={form.date}
-                onChange={handleChange}
-                required
-              />
+              <input className={inputClass} type="date" name="date"
+                value={form.date} onChange={handleChange} required />
             </div>
 
-            {/* Tipo */}
             <div>
               <label className={labelClass}>Tipo de pago</label>
-              <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+              <div className="flex rounded-lg border border-slate-600 overflow-hidden">
                 {(["Contado", "Crédito"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() =>
-                      handleChange({
-                        target: { name: "type", value: t },
-                      } as React.ChangeEvent<HTMLSelectElement>)
-                    }
+                  <button key={t} type="button"
+                    onClick={() => handleChange({ target: { name: "type", value: t } } as React.ChangeEvent<HTMLSelectElement>)}
                     className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
                       form.type === t
                         ? "bg-indigo-600 text-white"
-                        : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                        : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
                     }`}
                   >
                     {t}
@@ -189,54 +149,30 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
               </div>
             </div>
 
-            {/* Método */}
             <div>
               <label className={labelClass}>Método de pago</label>
-              <select
-                className={inputClass}
-                name="paymethod"
-                value={form.paymethod}
-                onChange={handleChange}
-                required
-              >
+              <select className={inputClass} name="paymethod" value={form.paymethod} onChange={handleChange} required>
                 <option value="">Selecciona un método</option>
-                {paymentMethods.map((pm) => (
-                  <option key={pm} value={pm}>{pm}</option>
-                ))}
+                {paymentMethods.map((pm) => <option key={pm._id} value={pm.name}>{pm.name}</option>)}
               </select>
             </div>
 
-            {/* Cuotas */}
             {form.type === "Crédito" && (
               <div>
                 <label className={labelClass}>Cuotas</label>
-                <input
-                  className={inputClass}
-                  type="number"
-                  name="dues"
-                  value={form.dues || ""}
-                  onChange={handleChange}
-                  min="1"
-                  placeholder="Ej: 12"
-                />
+                <input className={inputClass} type="number" name="dues"
+                  value={form.dues || ""} onChange={handleChange} min="1" placeholder="Ej: 12" />
               </div>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-800">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
+            <button type="submit" disabled={saving}
+              className="px-5 py-2 text-sm font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2 shadow-lg shadow-indigo-500/20">
               {saving ? (
                 <>
                   <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -245,9 +181,7 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
                   </svg>
                   Guardando...
                 </>
-              ) : (
-                "Guardar cambios"
-              )}
+              ) : "Guardar cambios"}
             </button>
           </div>
         </form>

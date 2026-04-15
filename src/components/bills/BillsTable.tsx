@@ -4,8 +4,15 @@ import {
   getPaginationRowModel, getSortedRowModel, flexRender,
   createColumnHelper, SortingState, ColumnFiltersState, FilterFn,
 } from "@tanstack/react-table";
+import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
-import { EXPENSE_CATEGORIES, getCategoryColor } from "../../constants/categories";
+import { getCategoryColor } from "../../constants/categories";
+import { Category, PayChannel } from "../../types/catalog";
+
+interface CatalogState {
+  categories: Category[];
+  payChannels: PayChannel[];
+}
 import ConfirmDeleteDialog from "../ConfirmDeleteDialog";
 import EditBillModal from "./EditBillModal";
 
@@ -42,6 +49,9 @@ const typeBadge = (type: string) => {
 const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
 const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
+  const { categories } = useSelector((state: { catalog: CatalogState }) => state.catalog);
+  const expenseCategories = categories.filter((c) => c.type === "gasto");
+
   const [sorting, setSorting]             = useState<SortingState>([{ id: "date", desc: true }]);
   const [globalFilter, setGlobalFilter]   = useState("");
   const [showFilters, setShowFilters]     = useState(false);
@@ -262,7 +272,7 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
                 <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
                   className="text-sm border border-slate-600 rounded-lg px-3 py-2 bg-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">Todas</option>
-                  {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {expenseCategories.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
               <div className="flex flex-col gap-1">

@@ -1,10 +1,12 @@
 import React, { useState } from "react";
+import { useSelector } from "react-redux";
 import { BillFormValues } from "../../types/bill";
-import {
-  EXPENSE_CATEGORIES,
-  CASH_PAYMETHODS,
-  CREDIT_PAYMETHODS,
-} from "../../constants/categories";
+import { Category, PayChannel } from "../../types/catalog";
+
+interface CatalogState {
+  categories: Category[];
+  payChannels: PayChannel[];
+}
 
 interface BillFormProps {
   onSubmit: (values: BillFormValues) => Promise<void>;
@@ -43,12 +45,19 @@ const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
 const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
+  const { categories, payChannels } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+
   const [form, setForm]             = useState<BillFormValues>(EMPTY_FORM);
   const [errors, setErrors]         = useState<FormErrors>({});
   const [collapsed, setCollapsed]   = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const paymentMethods = form.type === "Contado" ? CASH_PAYMETHODS : CREDIT_PAYMETHODS;
+  const expenseCategories = categories.filter((c) => c.type === "gasto");
+  const paymentMethods = payChannels.filter((p) =>
+    form.type === "Contado" ? p.type === "contado" : p.type === "credito"
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -122,7 +131,7 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
               <select className={fieldInputClass(errors.category)} name="category"
                 value={form.category} onChange={handleChange} onBlur={handleBlur}>
                 <option value="">Selecciona una categoría</option>
-                {EXPENSE_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
               </select>
               <FieldError msg={errors.category} />
             </div>
@@ -176,7 +185,7 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
               <select className={fieldInputClass(errors.paymethod)} name="paymethod"
                 value={form.paymethod} onChange={handleChange} onBlur={handleBlur}>
                 <option value="">Selecciona un método</option>
-                {paymentMethods.map((pm) => <option key={pm} value={pm}>{pm}</option>)}
+                {paymentMethods.map((pm) => <option key={pm._id} value={pm.name}>{pm.name}</option>)}
               </select>
               <FieldError msg={errors.paymethod} />
             </div>

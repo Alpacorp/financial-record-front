@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom";
+import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
-import { EXPENSE_CATEGORIES, CASH_PAYMETHODS, CREDIT_PAYMETHODS } from "../../constants/categories";
+import { Category, PayChannel } from "../../types/catalog";
+
+interface CatalogState {
+  categories: Category[];
+  payChannels: PayChannel[];
+}
 
 interface EditBillModalProps {
   bill: Bill | null;
@@ -25,9 +31,16 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
     }
   }, [bill]);
 
+  const { categories, payChannels } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+
   if (!bill || !form) return null;
 
-  const paymentMethods = form.type === "Contado" ? CASH_PAYMETHODS : CREDIT_PAYMETHODS;
+  const expenseCategories = categories.filter((c) => c.type === "gasto");
+  const paymentMethods = payChannels.filter((p) =>
+    form.type === "Contado" ? p.type === "contado" : p.type === "credito"
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -82,7 +95,7 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
               <label className={labelClass}>Categoría</label>
               <select className={inputClass} name="category" value={form.category} onChange={handleChange} required>
                 <option value="">Selecciona una categoría</option>
-                {EXPENSE_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
               </select>
             </div>
 
@@ -129,7 +142,7 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
               <label className={labelClass}>Método de pago</label>
               <select className={inputClass} name="paymethod" value={form.paymethod} onChange={handleChange} required>
                 <option value="">Selecciona un método</option>
-                {paymentMethods.map((pm) => <option key={pm} value={pm}>{pm}</option>)}
+                {paymentMethods.map((pm) => <option key={pm._id} value={pm.name}>{pm.name}</option>)}
               </select>
             </div>
 

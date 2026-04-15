@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import { INCOME_CATEGORIES, type Ingreso } from "../mocks/ingresosMock";
+import { type Ingreso } from "../mocks/ingresosMock";
 import { useIncomes, type IncomePayload } from "../hooks/useIncomes";
+import { Category, PayChannel } from "../types/catalog";
+
+interface CatalogState {
+  categories: Category[];
+  payChannels: PayChannel[];
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -22,7 +28,6 @@ const INCOME_COLORS: Record<string, string> = {
   "Otro":          "#9ca3af",
 };
 
-const PAYMETHODS = ["Transferencia", "Nequi", "Daviplata", "Efectivo", "Débito", "Cheque"];
 
 const getIncomeColor = (cat: string) => INCOME_COLORS[cat] ?? "#9ca3af";
 
@@ -70,6 +75,12 @@ const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 // ─── Income form ─────────────────────────────────────────────────────────────
 
 const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> }) => {
+  const { categories, payChannels } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+  const incomeCategories = categories.filter((c) => c.type === "ingreso");
+  const allPaymethods    = payChannels;
+
   const [form, setForm]           = useState<IngresoFormValues>(EMPTY);
   const [errors, setErrors]       = useState<FormErrors>({});
   const [collapsed, setCollapsed] = useState(false);
@@ -151,7 +162,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> 
                 onChange={handleChange} onBlur={handleBlur}
               >
                 <option value="">Selecciona una categoría</option>
-                {INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {incomeCategories.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
               </select>
               <FieldError msg={errors.category} />
             </div>
@@ -206,7 +217,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> 
                 onChange={handleChange} onBlur={handleBlur}
               >
                 <option value="">Selecciona un método</option>
-                {PAYMETHODS.map((p) => <option key={p} value={p}>{p}</option>)}
+                {allPaymethods.map((p) => <option key={p._id} value={p.name}>{p.name}</option>)}
               </select>
               <FieldError msg={errors.paymethod} />
             </div>
@@ -260,6 +271,10 @@ const Ingresos = () => {
   const { data: records, status } = useSelector(
     (state: { incomes: IncomesState }) => state.incomes
   );
+  const { categories } = useSelector(
+    (state: { catalog: CatalogState }) => state.catalog
+  );
+  const incomeCategories = categories.filter((c) => c.type === "ingreso");
   const { createIncomeStore } = useIncomes();
 
   const [filterCategory, setFilter] = useState("");
@@ -376,7 +391,7 @@ const Ingresos = () => {
             <select value={filterCategory} onChange={(e) => setFilter(e.target.value)}
               className="text-sm border border-slate-700 rounded-lg px-3 py-2 bg-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500">
               <option value="">Todas las categorías</option>
-              {INCOME_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {incomeCategories.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
         </div>

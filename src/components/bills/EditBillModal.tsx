@@ -3,10 +3,12 @@ import ReactDOM from "react-dom";
 import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
+import CatalogEmptyWarning from "../CatalogEmptyWarning";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  status: "idle" | "checking" | "success" | "failure";
 }
 
 interface EditBillModalProps {
@@ -31,7 +33,7 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
     }
   }, [bill]);
 
-  const { categories, payChannels } = useSelector(
+  const { categories, payChannels, status: catalogStatus } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
 
@@ -41,6 +43,14 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
   const paymentMethods = payChannels.filter((p) =>
     form.type === "Contado" ? p.type === "contado" : p.type === "credito"
   );
+
+  const catalogLoaded = catalogStatus === "success";
+  const missingItems = catalogLoaded ? [
+    ...(expenseCategories.length === 0 ? ["categorías de gastos"] : []),
+    ...(paymentMethods.length === 0
+      ? [`métodos de pago de ${form.type === "Contado" ? "contado" : "crédito"}`]
+      : []),
+  ] : [];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -83,6 +93,7 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
+          <CatalogEmptyWarning missing={missingItems} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
             <div>

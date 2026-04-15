@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
+import CatalogEmptyWarning from "../CatalogEmptyWarning";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  status: "idle" | "checking" | "success" | "failure";
 }
 
 interface BillFormProps {
@@ -45,7 +47,7 @@ const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
 const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
-  const { categories, payChannels } = useSelector(
+  const { categories, payChannels, status: catalogStatus } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
 
@@ -58,6 +60,14 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   const paymentMethods = payChannels.filter((p) =>
     form.type === "Contado" ? p.type === "contado" : p.type === "credito"
   );
+
+  const catalogLoaded = catalogStatus === "success";
+  const missingItems = catalogLoaded ? [
+    ...(expenseCategories.length === 0 ? ["categorías de gastos"] : []),
+    ...(paymentMethods.length === 0
+      ? [`métodos de pago de ${form.type === "Contado" ? "contado" : "crédito"}`]
+      : []),
+  ] : [];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -116,6 +126,7 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
       {!collapsed && (
         <form onSubmit={handleSubmit} noValidate className="px-6 pb-6">
           <div className="h-px bg-slate-800 mb-5" />
+          <CatalogEmptyWarning missing={missingItems} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             <div>

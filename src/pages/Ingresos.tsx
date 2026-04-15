@@ -3,10 +3,12 @@ import { useSelector } from "react-redux";
 import { type Ingreso } from "../mocks/ingresosMock";
 import { useIncomes, type IncomePayload } from "../hooks/useIncomes";
 import { Category, PayChannel } from "../types/catalog";
+import CatalogEmptyWarning from "../components/CatalogEmptyWarning";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  status: "idle" | "checking" | "success" | "failure";
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -75,11 +77,17 @@ const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 // ─── Income form ─────────────────────────────────────────────────────────────
 
 const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> }) => {
-  const { categories, payChannels } = useSelector(
+  const { categories, payChannels, status: catalogStatus } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
   const incomeCategories = categories.filter((c) => c.type === "ingreso");
   const allPaymethods    = payChannels;
+
+  const catalogLoaded = catalogStatus === "success";
+  const missingItems = catalogLoaded ? [
+    ...(incomeCategories.length === 0 ? ["categorías de ingresos"] : []),
+    ...(allPaymethods.length === 0    ? ["métodos de pago"]        : []),
+  ] : [];
 
   const [form, setForm]           = useState<IngresoFormValues>(EMPTY);
   const [errors, setErrors]       = useState<FormErrors>({});
@@ -137,6 +145,7 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> 
       {!collapsed && (
         <form onSubmit={handleSubmit} noValidate className="px-6 pb-6">
           <div className="h-px bg-slate-800 mb-5" />
+          <CatalogEmptyWarning missing={missingItems} />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Nombre */}

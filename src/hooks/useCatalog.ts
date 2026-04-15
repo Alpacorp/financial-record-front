@@ -59,6 +59,16 @@ export const useCatalog = () => {
     }
   };
 
+  const toggleInvestment = async (id: string, current: boolean) => {
+    try {
+      await billsApi.put(`/categories/${id}`, { isInvestment: !current });
+      const { data } = await billsApi.get("/categories");
+      dispatch(onSetCategories(data.categories));
+    } catch {
+      notify({ message: "Error al actualizar la categoría", severity: "error" });
+    }
+  };
+
   const deleteCategory = async (id: string) => {
     try {
       await billsApi.delete(`/categories/${id}`);
@@ -107,7 +117,7 @@ export const useCatalog = () => {
 
   return {
     getCatalogStore,
-    createCategory, updateCategory, deleteCategory,
+    createCategory, updateCategory, deleteCategory, toggleInvestment,
     createPayChannel, updatePayChannel, deletePayChannel,
   };
 };

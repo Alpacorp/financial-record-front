@@ -11,6 +11,7 @@ import {
 import { getCategoryColor } from "../constants/categories";
 import { Bill } from "../types/bill";
 import { Ingreso } from "../mocks/ingresosMock";
+import { Category } from "../types/catalog";
 
 interface BillsState {
   data: Bill[];
@@ -19,6 +20,10 @@ interface BillsState {
 
 interface IncomesState {
   data: Ingreso[];
+}
+
+interface CatalogState {
+  categories: Category[];
 }
 
 const formatCOP = (v: number) =>
@@ -217,6 +222,7 @@ const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: Category
 const Dashboard = () => {
   const { data, status }      = useSelector((state: { bills: BillsState }) => state.bills);
   const { data: incomes }     = useSelector((state: { incomes: IncomesState }) => state.incomes);
+  const { categories }        = useSelector((state: { catalog: CatalogState }) => state.catalog);
 
   const [preset, setPreset]       = useState<Preset>("year");
   const [customFrom, setCustomFrom] = useState(firstOfMonthOffset(-2));
@@ -246,13 +252,29 @@ const Dashboard = () => {
     [filtered]
   );
 
+  // Investment category names set
+  const investmentCats = useMemo(
+    () => new Set(categories.filter((c) => c.isInvestment).map((c) => c.name)),
+    [categories]
+  );
+
+  // Split expenses: operating vs investment
+  const operatingTotal = useMemo(
+    () => filtered.filter((b) => !investmentCats.has(b.category)).reduce((s, b) => s + (b.amount ?? 0), 0),
+    [filtered, investmentCats]
+  );
+  const investmentTotal = useMemo(
+    () => filtered.filter((b) => investmentCats.has(b.category)).reduce((s, b) => s + (b.amount ?? 0), 0),
+    [filtered, investmentCats]
+  );
+
   // Net balance: incomes vs expenses for the same period
   const incomeTotal = useMemo(
     () => incomes.filter((i) => i.date >= from && i.date <= to).reduce((s, i) => s + i.amount, 0),
     [incomes, from, to]
   );
-  const balance     = incomeTotal - stats.total;
-  const balancePos  = balance >= 0;
+  const balance    = incomeTotal - stats.total;
+  const balancePos = balance >= 0;
 
   const loading = status === "checking" || status === "idle";
 
@@ -315,18 +337,23 @@ const Dashboard = () => {
           <h2 className="text-sm font-semibold text-slate-200">Balance neto del período</h2>
           <span className="text-xs text-slate-600">{rangeLabel}</span>
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          {/* Ingresos */}
+
+        {/* Main figures */}
+        <div className={`grid gap-4 ${investmentTotal > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
           <div>
             <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Ingresos</p>
             <p className="text-xl font-bold text-emerald-400 tabular-nums">{formatCOP(incomeTotal)}</p>
           </div>
-          {/* Gastos */}
           <div>
-            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Gastos</p>
-            <p className="text-xl font-bold text-rose-400 tabular-nums">{formatCOP(stats.total)}</p>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Gastos op.</p>
+            <p className="text-xl font-bold text-rose-400 tabular-nums">{formatCOP(operatingTotal)}</p>
           </div>
-          {/* Balance */}
+          {investmentTotal > 0 && (
+            <div>
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Inversiones</p>
+              <p className="text-xl font-bold text-amber-400 tabular-nums">{formatCOP(investmentTotal)}</p>
+            </div>
+          )}
           <div>
             <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Balance</p>
             <p className={`text-xl font-bold tabular-nums ${balancePos ? "text-emerald-400" : "text-rose-400"}`}>
@@ -336,34 +363,43 @@ const Dashboard = () => {
         </div>
 
         {/* Visual ratio bar */}
-        {(incomeTotal > 0 || stats.total > 0) && (
-          <div className="mt-4">
-            <div className="h-2 bg-slate-800 rounded-full overflow-hidden flex">
-              {incomeTotal > 0 && (
-                <div
-                  className="h-full bg-emerald-500 rounded-l-full transition-all duration-500"
-                  style={{ width: `${Math.min((incomeTotal / (incomeTotal + stats.total)) * 100, 100)}%` }}
-                />
-              )}
-              {stats.total > 0 && (
-                <div
-                  className="h-full bg-rose-500 rounded-r-full transition-all duration-500"
-                  style={{ width: `${Math.min((stats.total / (incomeTotal + stats.total)) * 100, 100)}%` }}
-                />
-              )}
+        {(incomeTotal > 0 || stats.total > 0) && (() => {
+          const total = incomeTotal + operatingTotal + investmentTotal;
+          return (
+            <div className="mt-4">
+              <div className="h-2 bg-slate-800 rounded-full overflow-hidden flex gap-px">
+                {incomeTotal > 0 && (
+                  <div className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${(incomeTotal / total) * 100}%` }} />
+                )}
+                {operatingTotal > 0 && (
+                  <div className="h-full bg-rose-500 transition-all duration-500"
+                    style={{ width: `${(operatingTotal / total) * 100}%` }} />
+                )}
+                {investmentTotal > 0 && (
+                  <div className="h-full bg-amber-500 rounded-r-full transition-all duration-500"
+                    style={{ width: `${(investmentTotal / total) * 100}%` }} />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-600">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                  Ingresos {total > 0 ? `${((incomeTotal / total) * 100).toFixed(0)}%` : "0%"}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                  Gastos op. {total > 0 ? `${((operatingTotal / total) * 100).toFixed(0)}%` : "0%"}
+                </span>
+                {investmentTotal > 0 && (
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+                    Inversiones {`${((investmentTotal / total) * 100).toFixed(0)}%`}
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center justify-between mt-1.5 text-xs text-slate-600">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-                Ingresos {incomeTotal > 0 ? `${((incomeTotal / (incomeTotal + stats.total)) * 100).toFixed(0)}%` : "0%"}
-              </span>
-              <span className="flex items-center gap-1">
-                Gastos {stats.total > 0 ? `${((stats.total / (incomeTotal + stats.total)) * 100).toFixed(0)}%` : "0%"}
-                <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── Summary cards ── */}

@@ -27,14 +27,22 @@ interface ItemRowProps {
   id: string;
   name: string;
   showColor?: boolean;
+  isInvestment?: boolean;
+  showInvestmentToggle?: boolean;
   onSave: (id: string, name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onToggleInvestment?: (id: string, current: boolean) => Promise<void>;
 }
 
-const ItemRow = ({ id, name, showColor = false, onSave, onDelete }: ItemRowProps) => {
+const ItemRow = ({
+  id, name, showColor = false,
+  isInvestment = false, showInvestmentToggle = false,
+  onSave, onDelete, onToggleInvestment,
+}: ItemRowProps) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState(name);
   const [saving, setSaving]   = useState(false);
+  const [toggling, setToggling] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   const handleSave = async () => {
@@ -52,6 +60,13 @@ const ItemRow = ({ id, name, showColor = false, onSave, onDelete }: ItemRowProps
 
   const color = showColor ? getCategoryColor(name) : undefined;
 
+  const handleToggleInvestment = async () => {
+    if (!onToggleInvestment) return;
+    setToggling(true);
+    await onToggleInvestment(id, isInvestment);
+    setToggling(false);
+  };
+
   return (
     <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-800 last:border-0 hover:bg-slate-800/30 transition-colors group">
       {showColor && (
@@ -68,6 +83,25 @@ const ItemRow = ({ id, name, showColor = false, onSave, onDelete }: ItemRowProps
         />
       ) : (
         <span className="flex-1 text-sm text-slate-300">{name}</span>
+      )}
+
+      {/* Investment toggle — always visible when active, hover-visible when inactive */}
+      {showInvestmentToggle && !editing && (
+        <button
+          onClick={handleToggleInvestment}
+          disabled={toggling}
+          title={isInvestment ? "Marcada como inversión — click para quitar" : "Marcar como inversión"}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold transition-all disabled:opacity-50 ${
+            isInvestment
+              ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+              : "opacity-0 group-hover:opacity-100 bg-slate-800 text-slate-500 border border-slate-700 hover:border-amber-500/30 hover:text-amber-400"
+          }`}
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+          {isInvestment ? "Inversión" : "Inversión"}
+        </button>
       )}
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -165,7 +199,7 @@ const Configuracion = () => {
     (state: { catalog: CatalogState }) => state.catalog
   );
   const {
-    createCategory, updateCategory, deleteCategory,
+    createCategory, updateCategory, deleteCategory, toggleInvestment,
     createPayChannel, updatePayChannel, deletePayChannel,
   } = useCatalog();
 
@@ -271,8 +305,11 @@ const Configuracion = () => {
                 id={item._id}
                 name={item.name}
                 showColor={isCategory}
+                isInvestment={"isInvestment" in item ? (item as Category).isInvestment : false}
+                showInvestmentToggle={tab === "gasto"}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onToggleInvestment={tab === "gasto" ? toggleInvestment : undefined}
               />
             ))}
           </div>

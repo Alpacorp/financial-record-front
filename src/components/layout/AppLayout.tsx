@@ -6,6 +6,17 @@ interface AppLayoutProps {
   onLogout: () => void;
 }
 
+const getSessionName = (): string => {
+  try {
+    const token = localStorage.getItem("x-token");
+    if (!token) return "";
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return typeof payload.name === "string" ? payload.name : "";
+  } catch {
+    return "";
+  }
+};
+
 const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
   const today = new Date().toLocaleDateString("es-CO", {
     weekday: "long",
@@ -13,6 +24,8 @@ const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
     month: "long",
     day: "numeric",
   });
+
+  const userName = getSessionName();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -62,11 +75,30 @@ const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
             </div>
 
             {/* Right */}
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500 capitalize hidden sm:block">{today}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 capitalize hidden lg:block">{today}</span>
+
+              {/* Divider */}
+              {userName && <span className="hidden sm:block w-px h-4 bg-gray-200" />}
+
+              {/* User badge */}
+              {userName && (
+                <div className="hidden sm:flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-indigo-600">
+                      {userName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 max-w-[140px] truncate">
+                    {userName}
+                  </span>
+                </div>
+              )}
+
+              {/* Logout */}
               <button
                 onClick={onLogout}
-                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+                className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors ml-1"
                 title="Cerrar sesión"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

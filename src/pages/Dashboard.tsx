@@ -10,10 +10,15 @@ import {
 } from "../utils/billsAnalytics";
 import { getCategoryColor } from "../constants/categories";
 import { Bill } from "../types/bill";
+import { Ingreso } from "../mocks/ingresosMock";
 
 interface BillsState {
   data: Bill[];
   status: "idle" | "checking" | "success" | "failure";
+}
+
+interface IncomesState {
+  data: Ingreso[];
 }
 
 const formatCOP = (v: number) =>
@@ -210,7 +215,8 @@ const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: Category
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const { data, status } = useSelector((state: { bills: BillsState }) => state.bills);
+  const { data, status }      = useSelector((state: { bills: BillsState }) => state.bills);
+  const { data: incomes }     = useSelector((state: { incomes: IncomesState }) => state.incomes);
 
   const [preset, setPreset]       = useState<Preset>("year");
   const [customFrom, setCustomFrom] = useState(firstOfMonthOffset(-2));
@@ -239,6 +245,14 @@ const Dashboard = () => {
     () => getSpendingByCategory(filtered).map((cat) => ({ ...cat, fill: getCategoryColor(cat.name) })),
     [filtered]
   );
+
+  // Net balance: incomes vs expenses for the same period
+  const incomeTotal = useMemo(
+    () => incomes.filter((i) => i.date >= from && i.date <= to).reduce((s, i) => s + i.amount, 0),
+    [incomes, from, to]
+  );
+  const balance     = incomeTotal - stats.total;
+  const balancePos  = balance >= 0;
 
   const loading = status === "checking" || status === "idle";
 
@@ -295,9 +309,66 @@ const Dashboard = () => {
         )}
       </div>
 
+      {/* ── Balance neto ── */}
+      <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-slate-200">Balance neto del período</h2>
+          <span className="text-xs text-slate-600">{rangeLabel}</span>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {/* Ingresos */}
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Ingresos</p>
+            <p className="text-xl font-bold text-emerald-400 tabular-nums">{formatCOP(incomeTotal)}</p>
+          </div>
+          {/* Gastos */}
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Gastos</p>
+            <p className="text-xl font-bold text-rose-400 tabular-nums">{formatCOP(stats.total)}</p>
+          </div>
+          {/* Balance */}
+          <div>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Balance</p>
+            <p className={`text-xl font-bold tabular-nums ${balancePos ? "text-emerald-400" : "text-rose-400"}`}>
+              {balancePos ? "+" : ""}{formatCOP(balance)}
+            </p>
+          </div>
+        </div>
+
+        {/* Visual ratio bar */}
+        {(incomeTotal > 0 || stats.total > 0) && (
+          <div className="mt-4">
+            <div className="h-2 bg-slate-800 rounded-full overflow-hidden flex">
+              {incomeTotal > 0 && (
+                <div
+                  className="h-full bg-emerald-500 rounded-l-full transition-all duration-500"
+                  style={{ width: `${Math.min((incomeTotal / (incomeTotal + stats.total)) * 100, 100)}%` }}
+                />
+              )}
+              {stats.total > 0 && (
+                <div
+                  className="h-full bg-rose-500 rounded-r-full transition-all duration-500"
+                  style={{ width: `${Math.min((stats.total / (incomeTotal + stats.total)) * 100, 100)}%` }}
+                />
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-1.5 text-xs text-slate-600">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                Ingresos {incomeTotal > 0 ? `${((incomeTotal / (incomeTotal + stats.total)) * 100).toFixed(0)}%` : "0%"}
+              </span>
+              <span className="flex items-center gap-1">
+                Gastos {stats.total > 0 ? `${((stats.total / (incomeTotal + stats.total)) * 100).toFixed(0)}%` : "0%"}
+                <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total del período" value={formatCOP(stats.total)} sub={`${stats.recordCount} registros`} accent />
+        <StatCard label="Total gastos" value={formatCOP(stats.total)} sub={`${stats.recordCount} registros`} accent />
         <StatCard label="Promedio mensual"
           value={stats.recordCount > 0 ? formatCOP(stats.total / (trend.filter(t => t.total > 0).length || 1)) : "$0"}
           sub={rangeLabel} />

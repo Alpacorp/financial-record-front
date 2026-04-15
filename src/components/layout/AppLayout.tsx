@@ -28,20 +28,24 @@ const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
   const userName = getSessionName();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
       {/* Navbar */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
+
             {/* Brand + Nav */}
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                {/* Logo — trending chart */}
+                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
                   </svg>
                 </div>
-                <span className="font-bold text-gray-900 text-base hidden sm:block">Financial Record</span>
+                <span className="font-bold text-slate-100 text-base hidden sm:block tracking-tight">
+                  Financial Record
+                </span>
               </div>
 
               {/* Navigation */}
@@ -60,8 +64,8 @@ const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
                     className={({ isActive }) =>
                       `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         isActive
-                          ? "bg-indigo-50 text-indigo-700"
-                          : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                          ? "bg-indigo-500/20 text-indigo-400"
+                          : "text-slate-500 hover:text-slate-200 hover:bg-slate-800"
                       }`
                     }
                   >
@@ -76,20 +80,19 @@ const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
 
             {/* Right */}
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 capitalize hidden lg:block">{today}</span>
+              <span className="text-sm text-slate-600 capitalize hidden lg:block">{today}</span>
 
-              {/* Divider */}
-              {userName && <span className="hidden sm:block w-px h-4 bg-gray-200" />}
+              {userName && <span className="hidden sm:block w-px h-4 bg-slate-700" />}
 
               {/* User badge */}
               {userName && (
                 <div className="hidden sm:flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-bold text-indigo-600">
+                  <div className="w-7 h-7 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold text-indigo-400">
                       {userName.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-gray-700 max-w-[140px] truncate">
+                  <span className="text-sm font-medium text-slate-300 max-w-[140px] truncate">
                     {userName}
                   </span>
                 </div>
@@ -98,7 +101,7 @@ const AppLayout = ({ children, onLogout }: AppLayoutProps) => {
               {/* Logout */}
               <button
                 onClick={onLogout}
-                className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors ml-1"
+                className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-red-400 transition-colors ml-1"
                 title="Cerrar sesión"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

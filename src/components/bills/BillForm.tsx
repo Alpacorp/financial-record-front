@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
 import CatalogEmptyWarning from "../CatalogEmptyWarning";
+import billsApi from "../../apis/billsApi";
 
 interface CatalogState {
   categories: Category[];
@@ -46,6 +47,11 @@ const FieldError = ({ msg }: { msg?: string }) =>
 const capitalize = (str: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   const { categories, payChannels, status: catalogStatus } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
@@ -56,10 +62,50 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   const [collapsed, setCollapsed]   = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // AI state
+  const [aiOpen, setAiOpen]       = useState(false);
+  const [aiText, setAiText]       = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError]     = useState<string | null>(null);
+
   const expenseCategories = categories.filter((c) => c.type === "gasto");
   const paymentMethods = payChannels.filter((p) =>
     form.type === "Contado" ? p.type === "contado" : p.type === "credito"
   );
+
+  const handleAiParse = async () => {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const { data } = await billsApi.post("/ai/parse-expense", {
+        text: aiText,
+        categories: expenseCategories.map((c) => c.name),
+        paymethods: payChannels.map((p) => p.name),
+        today: todayStr(),
+      });
+      if (data.ok && data.parsed) {
+        const p = data.parsed;
+        setForm({
+          name:      p.name      ?? "",
+          category:  p.category  ?? "",
+          detail:    p.detail    ?? "",
+          amount:    Number(p.amount)  || 0,
+          date:      p.date      ?? "",
+          type:      p.type === "Crédito" ? "Crédito" : "Contado",
+          paymethod: p.paymethod ?? "",
+          dues:      p.dues      ?? undefined,
+        });
+        setErrors({});
+        setAiOpen(false);
+        setAiText("");
+      }
+    } catch {
+      setAiError("No se pudo interpretar el texto. Intenta ser más específico.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const catalogLoaded = catalogStatus === "success";
   const missingItems = catalogLoaded ? [
@@ -102,26 +148,111 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   return (
     <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg mb-6">
       {/* Header */}
-      <button
-        type="button"
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-6 py-4 text-left"
-      >
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-6 py-4">
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          className="flex items-center gap-2 text-left"
+        >
           <div className="w-7 h-7 bg-indigo-500/10 rounded-lg flex items-center justify-center">
             <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </div>
           <span className="font-semibold text-slate-200 text-sm">Registrar Gasto</span>
+        </button>
+
+        <div className="flex items-center gap-2">
+          {/* AI button */}
+          <button
+            type="button"
+            onClick={() => { setAiOpen((v) => !v); setAiError(null); if (collapsed) setCollapsed(false); }}
+            title="Completar con IA"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              aiOpen
+                ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                : "text-slate-500 hover:text-violet-400 hover:bg-violet-500/10"
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+            </svg>
+            IA
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1"
+          >
+            <svg
+              className={`w-4 h-4 text-slate-500 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
         </div>
-        <svg
-          className={`w-4 h-4 text-slate-500 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+      </div>
+
+      {/* AI panel */}
+      {aiOpen && !collapsed && (
+        <div className="mx-6 mb-4 rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
+          <div className="px-4 py-3 border-b border-violet-500/10 flex items-center gap-2">
+            <svg className="w-4 h-4 text-violet-400" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+            </svg>
+            <span className="text-xs font-semibold text-violet-400">Describe el gasto en lenguaje natural</span>
+          </div>
+          <div className="p-4">
+            <textarea
+              autoFocus
+              rows={2}
+              value={aiText}
+              onChange={(e) => { setAiText(e.target.value); setAiError(null); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiParse(); } }}
+              placeholder='Ej: "ayer gasté 80 mil en mercado con débito" o "Netflix 47.900 contado tarjeta"'
+              className="w-full px-3 py-2.5 text-sm bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+            />
+            {aiError && (
+              <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                {aiError}
+              </p>
+            )}
+            <div className="flex items-center justify-between mt-3">
+              <p className="text-xs text-slate-600">Enter para analizar · Shift+Enter para nueva línea</p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => { setAiOpen(false); setAiText(""); setAiError(null); }}
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                  Cancelar
+                </button>
+                <button type="button" onClick={handleAiParse} disabled={aiLoading || !aiText.trim()}
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-violet-500/20">
+                  {aiLoading ? (
+                    <>
+                      <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Analizando...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                      </svg>
+                      Analizar
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!collapsed && (
         <form onSubmit={handleSubmit} noValidate className="px-6 pb-6">

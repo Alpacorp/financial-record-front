@@ -1,37 +1,40 @@
 import React, { useState } from "react";
+import { useAuth } from "../../hooks/useAuth";
 
 interface AccessGateProps {
   onAccess: () => void;
 }
 
 const AccessGate = ({ onAccess }: AccessGateProps) => {
-  const [password, setPassword] = useState("");
+  const { login } = useAuth();
+
+  const [email, setEmail]             = useState("");
+  const [password, setPassword]       = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [loading, setLoading]         = useState(false);
 
-  const accessValue = import.meta.env.VITE_CONTENT;
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      if (password === accessValue) {
-        onAccess();
-      } else {
-        setError(true);
-        setLoading(false);
-        setTimeout(() => setError(false), 3000);
-      }
-    }, 400);
+    setError(null);
+
+    const result = await login(email, password);
+
+    if (result.ok) {
+      onAccess();
+    } else {
+      setError(result.error ?? "Credenciales incorrectas");
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Card */}
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-          {/* Header band */}
+
+          {/* Header */}
           <div className="bg-indigo-600 px-8 py-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
@@ -49,28 +52,44 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
           {/* Form */}
           <div className="px-8 py-8">
             <h2 className="text-gray-800 font-semibold text-lg mb-1">Bienvenido</h2>
-            <p className="text-gray-500 text-sm mb-6">Ingresa tu contraseña para continuar</p>
+            <p className="text-gray-500 text-sm mb-6">Ingresa tus credenciales para continuar</p>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+
+              {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Contraseña de acceso
+                  Correo electrónico
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
+                  className={`w-full px-4 py-3 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                    error ? "border-red-400 bg-red-50" : "border-gray-300 bg-gray-50 focus:bg-white"
+                  }`}
+                  placeholder="usuario@correo.com"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Contraseña
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (error) setError(false);
-                    }}
+                    onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     className={`w-full px-4 py-3 pr-12 rounded-lg border text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                      error
-                        ? "border-red-400 bg-red-50 text-red-700"
-                        : "border-gray-300 bg-gray-50 focus:bg-white"
+                      error ? "border-red-400 bg-red-50" : "border-gray-300 bg-gray-50 focus:bg-white"
                     }`}
                     placeholder="••••••••"
-                    autoFocus
+                    autoComplete="current-password"
                     required
                   />
                   <button
@@ -91,20 +110,23 @@ const AccessGate = ({ onAccess }: AccessGateProps) => {
                     )}
                   </button>
                 </div>
-                {error && (
-                  <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    Contraseña incorrecta. Inténtalo de nuevo.
-                  </p>
-                )}
               </div>
 
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 text-sm">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {error}
+                </div>
+              )}
+
+              {/* Submit */}
               <button
                 type="submit"
-                disabled={loading || !password}
-                className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                disabled={loading || !email || !password}
+                className="w-full py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2 mt-2"
               >
                 {loading ? (
                   <>

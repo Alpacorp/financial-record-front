@@ -2,11 +2,16 @@ import React, { useMemo, useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import { useSelector } from "react-redux";
 import { Bill } from "../types/bill";
-import { EXPENSE_CATEGORIES, getCategoryColor } from "../constants/categories";
+import { getCategoryColor } from "../constants/categories";
+import { Category } from "../types/catalog";
 
 interface BillsState {
   data: Bill[];
   status: "idle" | "checking" | "success" | "failure";
+}
+
+interface CatalogState {
+  categories: Category[];
 }
 
 const STORAGE_KEY = "financial_budgets";
@@ -128,6 +133,8 @@ const EditModal = ({ category, current, onSave, onClose }: EditModalProps) => {
 
 const Presupuestos = () => {
   const { data, status } = useSelector((state: { bills: BillsState }) => state.bills);
+  const { categories }   = useSelector((state: { catalog: CatalogState }) => state.catalog);
+  const expenseCategories = categories.filter((c) => c.type === "gasto");
   const [budgets, setBudgets] = useState<Record<string, number>>(loadBudgets);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -155,7 +162,7 @@ const Presupuestos = () => {
 
   const totalBudgeted   = Object.values(budgets).reduce((s, v) => s + v, 0);
   const totalSpent      = Object.entries(spentByCategory).reduce((s, [, v]) => s + v, 0);
-  const categoriesOver  = EXPENSE_CATEGORIES.filter((c) => budgets[c] && (spentByCategory[c] ?? 0) > budgets[c]).length;
+  const categoriesOver  = expenseCategories.filter((c) => budgets[c.name] && (spentByCategory[c.name] ?? 0) > budgets[c.name]).length;
   const budgetedCount   = Object.keys(budgets).length;
 
   if (status === "idle" || status === "checking") {
@@ -206,9 +213,9 @@ const Presupuestos = () => {
           </p>
         </div>
         <div>
-          {EXPENSE_CATEGORIES.map((cat) => (
-            <BudgetRow key={cat} category={cat}
-              spent={spentByCategory[cat] ?? 0} budget={budgets[cat] ?? 0} onEdit={setEditing} />
+          {expenseCategories.map((cat) => (
+            <BudgetRow key={cat._id} category={cat.name}
+              spent={spentByCategory[cat.name] ?? 0} budget={budgets[cat.name] ?? 0} onEdit={setEditing} />
           ))}
         </div>
       </div>

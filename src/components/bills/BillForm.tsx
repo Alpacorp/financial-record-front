@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
@@ -67,6 +67,55 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   const [aiText, setAiText]       = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError]     = useState<string | null>(null);
+
+  // Voice recognition state
+  const [recording, setRecording]   = useState(false);
+  const [voiceSupported]            = useState(() =>
+    typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
+  );
+  const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null);
+
+  // Cleanup recognition on unmount
+  useEffect(() => {
+    return () => { recognitionRef.current?.abort(); };
+  }, []);
+
+  const startRecording = () => {
+    const SR = (window.SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition: typeof window.SpeechRecognition }).webkitSpeechRecognition);
+    const recognition = new SR();
+    recognition.lang = "es-CO";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      const transcript = Array.from(e.results)
+        .map((r) => r[0].transcript)
+        .join("");
+      setAiText(transcript);
+      setAiError(null);
+    };
+
+    recognition.onerror = () => {
+      setRecording(false);
+      setAiError("No se pudo acceder al micrófono. Verifica los permisos del navegador.");
+    };
+
+    recognition.onend = () => {
+      setRecording(false);
+      // Auto-parse when voice ends if there's text
+      recognitionRef.current = null;
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setRecording(true);
+    setAiError(null);
+  };
+
+  const stopRecording = () => {
+    recognitionRef.current?.stop();
+    setRecording(false);
+  };
 
   const expenseCategories = categories.filter((c) => c.type === "gasto");
   const paymentMethods = payChannels.filter((p) =>
@@ -205,15 +254,56 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
             <span className="text-xs font-semibold text-violet-400">Describe el gasto en lenguaje natural</span>
           </div>
           <div className="p-4">
-            <textarea
-              autoFocus
-              rows={2}
-              value={aiText}
-              onChange={(e) => { setAiText(e.target.value); setAiError(null); }}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiParse(); } }}
-              placeholder='Ej: "ayer gasté 80 mil en mercado con débito" o "Netflix 47.900 contado tarjeta"'
-              className="w-full px-3 py-2.5 text-sm bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
-            />
+            <div className="relative">
+              <textarea
+                autoFocus={!recording}
+                rows={2}
+                value={aiText}
+                onChange={(e) => { setAiText(e.target.value); setAiError(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiParse(); } }}
+                placeholder={recording ? "Escuchando..." : 'Ej: "ayer gasté 80 mil en mercado con débito" o habla con el micrófono'}
+                className={`w-full px-3 py-2.5 pr-12 text-sm bg-slate-800 border rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 resize-none transition-colors ${
+                  recording ? "border-red-500/60 focus:ring-red-500 placeholder-red-400/60" : "border-slate-600 focus:ring-violet-500"
+                }`}
+              />
+              {/* Microphone button inside textarea */}
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={recording ? stopRecording : startRecording}
+                  disabled={aiLoading}
+                  title={recording ? "Detener grabación" : "Hablar"}
+                  className={`absolute right-2.5 top-2.5 p-1.5 rounded-lg transition-colors ${
+                    recording
+                      ? "text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                      : "text-slate-500 hover:text-violet-400 hover:bg-violet-500/10"
+                  }`}
+                >
+                  {recording ? (
+                    /* Stop icon + pulse */
+                    <span className="relative flex items-center justify-center w-4 h-4">
+                      <span className="absolute w-4 h-4 rounded-full bg-red-500/30 animate-ping" />
+                      <svg className="w-4 h-4 relative" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="6" width="12" height="12" rx="2"/>
+                      </svg>
+                    </span>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* Recording hint */}
+            {recording && (
+              <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
+                Grabando — habla claramente y detente cuando termines
+              </p>
+            )}
+
             {aiError && (
               <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
                 <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -222,14 +312,17 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
                 {aiError}
               </p>
             )}
+
             <div className="flex items-center justify-between mt-3">
-              <p className="text-xs text-slate-600">Enter para analizar · Shift+Enter para nueva línea</p>
+              <p className="text-xs text-slate-600">
+                {voiceSupported ? "Escribe o habla · Enter para analizar" : "Enter para analizar · Shift+Enter nueva línea"}
+              </p>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => { setAiOpen(false); setAiText(""); setAiError(null); }}
+                <button type="button" onClick={() => { setAiOpen(false); setAiText(""); setAiError(null); stopRecording(); }}
                   className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
                   Cancelar
                 </button>
-                <button type="button" onClick={handleAiParse} disabled={aiLoading || !aiText.trim()}
+                <button type="button" onClick={handleAiParse} disabled={aiLoading || !aiText.trim() || recording}
                   className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-violet-500/20">
                   {aiLoading ? (
                     <>

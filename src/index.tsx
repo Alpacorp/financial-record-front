@@ -6,6 +6,7 @@ import { store } from "./store/store";
 
 import AppRoutes from "./containers/AppRoutes";
 import { NotificationProvider } from "./context/NotificationContext";
+import { ThemeProvider } from "./context/ThemeContext";
 
 import "./index.css";
 
@@ -18,6 +19,7 @@ const isUnderMaintenance = import.meta.env.VITE_MAINTENANCE === "true";
 root.render(
   <React.StrictMode>
     <Provider store={store}>
+      <ThemeProvider>
       <NotificationProvider>
         {isUnderMaintenance ? (
           <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -29,6 +31,7 @@ root.render(
           <AppRoutes />
         )}
       </NotificationProvider>
+      </ThemeProvider>
     </Provider>
   </React.StrictMode>
 );

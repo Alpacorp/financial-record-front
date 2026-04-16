@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
+import ReactDOM from "react-dom";
 import { useSelector } from "react-redux";
 import { type Ingreso } from "../mocks/ingresosMock";
 import { useIncomes, type IncomePayload } from "../hooks/useIncomes";
 import { Category, PayChannel } from "../types/catalog";
 import CatalogEmptyWarning from "../components/CatalogEmptyWarning";
+import ConfirmDeleteDialog from "../components/ConfirmDeleteDialog";
 
 interface CatalogState {
   categories: Category[];
@@ -262,6 +264,111 @@ const IncomeForm = ({ onAdd }: { onAdd: (v: IngresoFormValues) => Promise<void> 
   );
 };
 
+// ─── Edit income modal ───────────────────────────────────────────────────────
+
+interface EditIncomeModalProps {
+  income: Ingreso | null;
+  onSave: (id: string, payload: IncomePayload) => Promise<void>;
+  onClose: () => void;
+  categories: Category[];
+  payChannels: PayChannel[];
+}
+
+const inputCls = "w-full px-3 py-2.5 rounded-lg border border-slate-600 bg-slate-800 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-colors placeholder-slate-500";
+const labelCls = "block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1";
+
+const EditIncomeModal = ({ income, onSave, onClose, categories, payChannels }: EditIncomeModalProps) => {
+  // useState initialized from prop — remount via key={income._id} ensures it's always fresh
+  const [form, setForm] = useState(income ? {
+    name: income.name, category: income.category, detail: income.detail,
+    amount: income.amount, date: income.date, paymethod: income.paymethod,
+  } : null);
+  const [saving, setSaving] = useState(false);
+
+  if (!income || !form) return null;
+
+  const incomeCategories = categories.filter((c) => c.type === "ingreso");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setForm((p) => p ? ({ ...p, [name]: name === "amount" ? Number(value) || 0 : value }) : p);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form) return;
+    setSaving(true);
+    await onSave(income._id, {
+      concept: form.name, category: form.category, detail: form.detail,
+      amount: form.amount, date: form.date, channel: form.paymethod, paymethod: form.paymethod,
+    });
+    setSaving(false);
+    onClose();
+  };
+
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg max-h-screen overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h2 className="text-base font-semibold text-slate-100">Editar ingreso</h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Nombre</label>
+            <input className={inputCls} name="name" value={form.name} onChange={handleChange} required />
+          </div>
+          <div>
+            <label className={labelCls}>Categoría</label>
+            <select className={inputCls} name="category" value={form.category} onChange={handleChange}>
+              <option value="">Selecciona</option>
+              {incomeCategories.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Detalle</label>
+            <input className={inputCls} name="detail" value={form.detail} onChange={handleChange} />
+          </div>
+          <div>
+            <label className={labelCls}>Monto (COP)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">$</span>
+              <input className={`${inputCls} pl-7`} name="amount" type="number" value={form.amount || ""} onChange={handleChange} min="1" required />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Fecha</label>
+            <input className={inputCls} name="date" type="date" value={form.date} onChange={handleChange} required />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Método de pago</label>
+            <select className={inputCls} name="paymethod" value={form.paymethod} onChange={handleChange}>
+              <option value="">Selecciona</option>
+              {payChannels.map((p) => <option key={p._id} value={p.name}>{p.name}</option>)}
+            </select>
+          </div>
+          <div className="sm:col-span-2 flex justify-end gap-3 pt-2 border-t border-slate-800">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              className="px-5 py-2 text-sm font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-40 transition-colors shadow-lg shadow-emerald-500/20 flex items-center gap-2">
+              {saving ? (<><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Guardando...</>) : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
 const StatCard = ({ label, value, sub, accent = false }: {
@@ -280,11 +387,14 @@ const Ingresos = () => {
   const { data: records, status } = useSelector(
     (state: { incomes: IncomesState }) => state.incomes
   );
-  const { categories } = useSelector(
+  const { categories, payChannels } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
   const incomeCategories = categories.filter((c) => c.type === "ingreso");
-  const { createIncomeStore } = useIncomes();
+  const { createIncomeStore, updateIncomeStore, deleteIncomeStore } = useIncomes();
+
+  const [editTarget, setEditTarget]     = useState<Ingreso | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Ingreso | null>(null);
 
   const [filterCategory, setFilter] = useState("");
   const [search, setSearch]         = useState("");
@@ -413,7 +523,7 @@ const Ingresos = () => {
             {rows.map((inc) => {
               const color = getIncomeColor(inc.category);
               return (
-                <div key={inc._id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-800/40 transition-colors">
+                <div key={inc._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-800/40 transition-colors">
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-100 truncate">{inc.name}</p>
@@ -425,15 +535,50 @@ const Ingresos = () => {
                   </span>
                   <span className="text-xs text-slate-500 hidden md:block w-28 text-right flex-shrink-0">{inc.paymethod}</span>
                   <span className="text-xs text-slate-500 font-mono w-24 text-right flex-shrink-0">{inc.date}</span>
-                  <span className="text-sm font-bold text-emerald-400 tabular-nums w-32 text-right flex-shrink-0">
+                  <span className="text-sm font-bold text-emerald-400 tabular-nums w-28 text-right flex-shrink-0">
                     +{formatCOP(inc.amount)}
                   </span>
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => setEditTarget(inc)}
+                      className="p-1.5 text-slate-600 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors" title="Editar">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button onClick={() => setDeleteTarget(inc)}
+                      className="p-1.5 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Edit modal — key forces remount so useState initializer runs fresh */}
+      <EditIncomeModal
+        key={editTarget?._id}
+        income={editTarget}
+        onSave={updateIncomeStore}
+        onClose={() => setEditTarget(null)}
+        categories={categories}
+        payChannels={payChannels}
+      />
+
+      {/* Delete confirmation */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        billName={deleteTarget?.name ?? ""}
+        onConfirm={async () => {
+          if (deleteTarget) { await deleteIncomeStore(deleteTarget._id); setDeleteTarget(null); }
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

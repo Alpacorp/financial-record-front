@@ -3,6 +3,7 @@ export interface Category {
   name: string;
   type: "gasto" | "ingreso";
   isInvestment?: boolean;
+  emoji?: string;
 }
 
 export interface PayChannel {

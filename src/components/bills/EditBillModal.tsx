@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
+import { getCategoryLabel } from "../../constants/categories";
 import CatalogEmptyWarning from "../CatalogEmptyWarning";
 
 interface CatalogState {
@@ -41,7 +42,9 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
 
   const expenseCategories = categories.filter((c) => c.type === "gasto");
   const paymentMethods = payChannels.filter((p) =>
-    form.type === "Contado" ? p.type === "contado" : p.type === "credito"
+    form.type === "Contado"
+      ? p.type === "contado" || p.type === "ambos"
+      : p.type === "credito" || p.type === "ambos"
   );
 
   const catalogLoaded = catalogStatus === "success";
@@ -106,7 +109,7 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
               <label className={labelClass}>Categoría</label>
               <select className={inputClass} name="category" value={form.category} onChange={handleChange} required>
                 <option value="">Selecciona una categoría</option>
-                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
+                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{getCategoryLabel(cat.name, cat.emoji)}</option>)}
               </select>
             </div>
 

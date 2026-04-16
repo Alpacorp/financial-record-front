@@ -31,3 +31,7 @@ const hashName = (name: string): number => {
 /** Color hex de una categoría — estable por nombre, consistente en toda la app. */
 export const getCategoryColor = (category: string): string =>
   PALETTE[hashName(category) % PALETTE.length] ?? "#9ca3af";
+
+/** Returns "🛒 Mercado" or just "Mercado" when no emoji is set. */
+export const getCategoryLabel = (name: string, emoji?: string): string =>
+  emoji ? `${emoji} ${name}` : name;

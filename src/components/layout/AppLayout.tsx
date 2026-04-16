@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
+import { useTheme } from "../../context/ThemeContext";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -73,7 +74,9 @@ const Sidebar = ({
 }: {
   collapsed: boolean; onToggle: () => void;
   onClose: () => void; userName: string; onLogout: () => void;
-}) => (
+}) => {
+  const { theme, toggleTheme } = useTheme();
+  return (
   <aside
     className={`flex flex-col h-full bg-slate-900 border-r border-slate-800 transition-all duration-200 ${
       collapsed ? "w-[60px]" : "w-60"
@@ -132,6 +135,24 @@ const Sidebar = ({
         </button>
       )}
 
+      {/* Theme toggle */}
+      <button
+        onClick={toggleTheme}
+        title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-500 hover:text-slate-200 hover:bg-slate-800 ${collapsed ? "justify-center" : ""}`}
+      >
+        {theme === "dark" ? (
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        )}
+        {!collapsed && <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>}
+      </button>
+
       {/* User + logout */}
       <div className={`flex items-center pt-2 mt-1 border-t border-slate-800 ${collapsed ? "justify-center px-0" : "gap-2 px-1"}`}>
         <div className="w-7 h-7 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
@@ -167,7 +188,8 @@ const Sidebar = ({
       </div>
     </div>
   </aside>
-);
+  );
+};
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 

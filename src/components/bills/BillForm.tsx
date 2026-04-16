@@ -4,6 +4,7 @@ import { BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
 import CatalogEmptyWarning from "../CatalogEmptyWarning";
 import billsApi from "../../apis/billsApi";
+import { getCategoryLabel } from "../../constants/categories";
 
 interface CatalogState {
   categories: Category[];
@@ -119,7 +120,9 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
 
   const expenseCategories = categories.filter((c) => c.type === "gasto");
   const paymentMethods = payChannels.filter((p) =>
-    form.type === "Contado" ? p.type === "contado" : p.type === "credito"
+    form.type === "Contado"
+      ? p.type === "contado" || p.type === "ambos"
+      : p.type === "credito" || p.type === "ambos"
   );
 
   const handleAiParse = async () => {
@@ -366,7 +369,7 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
               <select className={fieldInputClass(errors.category)} name="category"
                 value={form.category} onChange={handleChange} onBlur={handleBlur}>
                 <option value="">Selecciona una categoría</option>
-                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
+                {expenseCategories.map((cat) => <option key={cat._id} value={cat.name}>{getCategoryLabel(cat.name, cat.emoji)}</option>)}
               </select>
               <FieldError msg={errors.category} />
             </div>

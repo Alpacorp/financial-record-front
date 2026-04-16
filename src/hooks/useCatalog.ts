@@ -69,6 +69,16 @@ export const useCatalog = () => {
     }
   };
 
+  const updateCategoryEmoji = async (id: string, emoji: string) => {
+    try {
+      await billsApi.put(`/categories/${id}`, { emoji });
+      const { data } = await billsApi.get("/categories");
+      dispatch(onSetCategories(data.categories));
+    } catch {
+      notify({ message: "Error al guardar el emoji", severity: "error" });
+    }
+  };
+
   const deleteCategory = async (id: string) => {
     try {
       await billsApi.delete(`/categories/${id}`);
@@ -90,6 +100,33 @@ export const useCatalog = () => {
       notify({ message: "Método de pago creado", severity: "success" });
     } catch {
       notify({ message: "Error al crear el método de pago", severity: "error" });
+    }
+  };
+
+  // Toggle contado/credito on a pay channel
+  // type: "contado"|"credito"|"ambos" — we flip the toggled dimension
+  const togglePayChannelType = async (id: string, toggle: "contado" | "credito", current: PayChannel["type"]) => {
+    let next: PayChannel["type"];
+    const hasContado = current === "contado" || current === "ambos";
+    const hasCredito = current === "credito" || current === "ambos";
+
+    if (toggle === "contado") {
+      if (hasContado && hasCredito) next = "credito";       // ambos → credito
+      else if (hasContado && !hasCredito) next = "contado"; // can't remove last
+      else next = "ambos";                                  // credito → ambos
+    } else {
+      if (hasContado && hasCredito) next = "contado";       // ambos → contado
+      else if (hasCredito && !hasContado) next = "credito"; // can't remove last
+      else next = "ambos";                                  // contado → ambos
+    }
+
+    if (next === current) return;
+    try {
+      await billsApi.put(`/paychannels/${id}`, { type: next });
+      const { data } = await billsApi.get("/paychannels");
+      dispatch(onSetPayChannels(data.payChannels));
+    } catch {
+      notify({ message: "Error al actualizar el método", severity: "error" });
     }
   };
 
@@ -117,7 +154,7 @@ export const useCatalog = () => {
 
   return {
     getCatalogStore,
-    createCategory, updateCategory, deleteCategory, toggleInvestment,
-    createPayChannel, updatePayChannel, deletePayChannel,
+    createCategory, updateCategory, deleteCategory, toggleInvestment, updateCategoryEmoji,
+    createPayChannel, updatePayChannel, deletePayChannel, togglePayChannelType,
   };
 };

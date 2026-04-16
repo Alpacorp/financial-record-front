@@ -118,6 +118,13 @@ interface CategoryBreakdownProps {
 }
 
 const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: CategoryBreakdownProps) => {
+  const { categories } = useSelector((state: { catalog: CatalogState }) => state.catalog);
+  const emojiMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    categories.forEach((c) => { if (c.emoji) m[c.name] = c.emoji; });
+    return m;
+  }, [categories]);
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const toggle = (name: string) =>
@@ -159,7 +166,9 @@ const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: Category
               <button onClick={() => toggle(cat.name)}
                 className="w-full flex items-center gap-4 px-5 py-3 text-left hover:bg-slate-800/50 transition-colors">
                 <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
-                <span className="text-sm text-slate-300 flex-1 font-medium">{cat.name}</span>
+                <span className="text-sm text-slate-300 flex-1 font-medium">
+                  {emojiMap[cat.name] ? `${emojiMap[cat.name]} ` : ""}{cat.name}
+                </span>
                 <span className="text-xs text-slate-600 tabular-nums hidden sm:block">
                   {bills.length} registro{bills.length !== 1 ? "s" : ""}
                 </span>
@@ -220,9 +229,15 @@ const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: Category
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
-  const { data, status }      = useSelector((state: { bills: BillsState }) => state.bills);
-  const { data: incomes }     = useSelector((state: { incomes: IncomesState }) => state.incomes);
-  const { categories }        = useSelector((state: { catalog: CatalogState }) => state.catalog);
+  const { data, status }  = useSelector((state: { bills: BillsState }) => state.bills);
+  const { data: incomes } = useSelector((state: { incomes: IncomesState }) => state.incomes);
+  const { categories }    = useSelector((state: { catalog: CatalogState }) => state.catalog);
+
+  const emojiMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    categories.forEach((c) => { if (c.emoji) m[c.name] = c.emoji; });
+    return m;
+  }, [categories]);
 
   const [preset, setPreset]       = useState<Preset>("year");
   const [customFrom, setCustomFrom] = useState(firstOfMonthOffset(-2));
@@ -408,8 +423,11 @@ const Dashboard = () => {
         <StatCard label="Promedio mensual"
           value={stats.recordCount > 0 ? formatCOP(stats.total / (trend.filter(t => t.total > 0).length || 1)) : "$0"}
           sub={rangeLabel} />
-        <StatCard label="Categoría principal" value={stats.topCategory?.name ?? "—"}
-          sub={stats.topCategory ? formatCOP(stats.topCategory.value) : undefined} />
+        <StatCard
+          label="Categoría principal"
+          value={stats.topCategory ? `${emojiMap[stats.topCategory.name] ? emojiMap[stats.topCategory.name] + " " : ""}${stats.topCategory.name}` : "—"}
+          sub={stats.topCategory ? formatCOP(stats.topCategory.value) : undefined}
+        />
       </div>
 
       {/* ── Charts row ── */}
@@ -450,7 +468,9 @@ const Dashboard = () => {
                 {byCategory.map((cat) => (
                   <div key={cat.name} className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getCategoryColor(cat.name) }} />
-                    <span className="text-xs text-slate-500">{cat.name}</span>
+                    <span className="text-xs text-slate-500">
+                      {emojiMap[cat.name] ? `${emojiMap[cat.name]} ` : ""}{cat.name}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { Bill } from "../types/bill";
 import { getCategoryColor } from "../constants/categories";
 import { Category } from "../types/catalog";
+import { useEmojiMap } from "../hooks/useEmojiMap";
 import { Budget } from "../store/budgets/budgetsSlice";
 import { useBudgets } from "../hooks/useBudgets";
 
@@ -151,6 +152,7 @@ const Presupuestos = () => {
   const { categories } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
+  const emojiMap = useEmojiMap();
   const { data: budgetsList, status: budgetsStatus } = useSelector(
     (state: { budgets: BudgetsState }) => state.budgets
   );
@@ -260,11 +262,11 @@ const Presupuestos = () => {
             expenseCategories.map((cat) => (
               <BudgetRow
                 key={cat._id}
-                category={cat.name}
+                category={`${emojiMap[cat.name] ? emojiMap[cat.name] + " " : ""}${cat.name}`}
                 spent={spentByCategory[cat.name] ?? 0}
                 budget={budgetsMap[cat.name]?.amount ?? 0}
                 budgetId={budgetsMap[cat.name]?.id}
-                onEdit={setEditing}
+                onEdit={(_label) => setEditing(cat.name)}
               />
             ))
           )}

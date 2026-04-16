@@ -8,6 +8,7 @@ import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
 import { getCategoryColor } from "../../constants/categories";
 import { Category, PayChannel } from "../../types/catalog";
+import { useEmojiMap } from "../../hooks/useEmojiMap";
 
 interface CatalogState {
   categories: Category[];
@@ -51,6 +52,7 @@ const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slic
 const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
   const { categories } = useSelector((state: { catalog: CatalogState }) => state.catalog);
   const expenseCategories = categories.filter((c) => c.type === "gasto");
+  const emojiMap = useEmojiMap();
 
   const [sorting, setSorting]             = useState<SortingState>([{ id: "date", desc: true }]);
   const [globalFilter, setGlobalFilter]   = useState("");
@@ -104,7 +106,10 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
             style={{ backgroundColor: `${color}20`, color }}>
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            {emojiMap[cat]
+              ? <span className="text-sm leading-none">{emojiMap[cat]}</span>
+              : <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            }
             {cat}
           </span>
         );
@@ -167,7 +172,7 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       ),
       size: 80,
     }),
-  ], []);
+  ], [emojiMap]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({

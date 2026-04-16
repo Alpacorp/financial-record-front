@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { type Ingreso } from "../mocks/ingresosMock";
 import { useIncomes, type IncomePayload } from "../hooks/useIncomes";
 import { Category, PayChannel } from "../types/catalog";
+import { useEmojiMap } from "../hooks/useEmojiMap";
 import CatalogEmptyWarning from "../components/CatalogEmptyWarning";
 import ConfirmDeleteDialog from "../components/ConfirmDeleteDialog";
 
@@ -391,6 +392,7 @@ const Ingresos = () => {
     (state: { catalog: CatalogState }) => state.catalog
   );
   const incomeCategories = categories.filter((c) => c.type === "ingreso");
+  const emojiMap = useEmojiMap();
   const { createIncomeStore, updateIncomeStore, deleteIncomeStore } = useIncomes();
 
   const [editTarget, setEditTarget]     = useState<Ingreso | null>(null);
@@ -529,8 +531,11 @@ const Ingresos = () => {
                     <p className="text-sm font-medium text-slate-100 truncate">{inc.name}</p>
                     <p className="text-xs text-slate-500 truncate">{inc.detail}</p>
                   </div>
-                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium flex-shrink-0"
                     style={{ backgroundColor: `${color}20`, color }}>
+                    {emojiMap[inc.category] && (
+                      <span className="text-sm leading-none">{emojiMap[inc.category]}</span>
+                    )}
                     {inc.category}
                   </span>
                   <span className="text-xs text-slate-500 hidden md:block w-28 text-right flex-shrink-0">{inc.paymethod}</span>

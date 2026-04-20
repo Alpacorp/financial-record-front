@@ -76,8 +76,8 @@ const BudgetRow = ({ category, spent, prevSpent, budget, onEdit }: BudgetRowProp
 
   return (
     <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-800 last:border-0 hover:bg-slate-800/40 transition-colors">
-      <div className="flex items-center gap-2.5 w-40 flex-shrink-0">
-        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+      <div className="flex items-center gap-2.5 w-40 shrink-0">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <span className="text-sm text-slate-300 font-medium truncate">{category}</span>
       </div>
 
@@ -107,7 +107,7 @@ const BudgetRow = ({ category, spent, prevSpent, budget, onEdit }: BudgetRowProp
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-3 shrink-0">
         <div className="text-right">
           {nobudget
             ? <span className="text-xs text-slate-700">—</span>

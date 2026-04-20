@@ -5,8 +5,8 @@ import {
   ResponsiveContainer, PieChart, Pie,
 } from "recharts";
 import {
-  filterBillsByRange, getSpendingByCategory, getMonthlyTrend,
-  getSummaryStats, getDataDateRange,
+  filterBillsByRange, getSpendingByCategory, getMonthlyTrendWithIncome,
+  getSummaryStats, getDataDateRange, MonthStatCombined,
 } from "../utils/billsAnalytics";
 import { getCategoryColor } from "../constants/categories";
 import { Bill } from "../types/bill";
@@ -26,6 +26,8 @@ interface CatalogState {
   categories: Category[];
 }
 
+// ─── Formatters ──────────────────────────────────────────────────────────────
+
 const formatCOP = (v: number) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
 
@@ -34,6 +36,13 @@ const formatShort = (v: number) => {
   if (v >= 1_000)     return `$${(v / 1_000).toFixed(0)}k`;
   return `$${v}`;
 };
+
+const fmtDateShort = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 
 const today = (): string => {
   const d = new Date();
@@ -54,6 +63,8 @@ const parseLocal = (s: string): Date => {
   return new Date(y, m - 1, day);
 };
 
+// ─── Presets ──────────────────────────────────────────────────────────────────
+
 type Preset = "month" | "3m" | "6m" | "year" | "all" | "custom";
 
 const PRESETS: { id: Preset; label: string }[] = [
@@ -65,16 +76,42 @@ const PRESETS: { id: Preset; label: string }[] = [
   { id: "custom", label: "Personalizado" },
 ];
 
-// ─── Tooltips ────────────────────────────────────────────────────────────────
+// ─── CSV export ───────────────────────────────────────────────────────────────
 
-const BarTip = ({ active, payload, label }: {
-  active?: boolean; payload?: { value: number }[]; label?: string;
+const exportToCSV = (bills: Bill[], from: string, to: string) => {
+  const headers = ["Nombre", "Categoría", "Detalle", "Monto", "Fecha", "Tipo", "Método de pago"];
+  const rows = bills.map((b) => [
+    b.name ?? "", b.category ?? "", b.detail ?? "",
+    b.amount ?? 0, b.date ?? "", b.type ?? "", b.paymethod ?? "",
+  ]);
+  const csv = [headers, ...rows]
+    .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `gastos_${from}_${to}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// ─── Tooltips ─────────────────────────────────────────────────────────────────
+
+const CombinedBarTip = ({ active, payload, label }: {
+  active?: boolean;
+  payload?: { name: string; value: number; fill: string }[];
+  label?: string;
 }) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg shadow-xl px-3 py-2 text-sm">
-      <p className="font-medium text-slate-400 mb-0.5">{label}</p>
-      <p className="text-indigo-400 font-semibold">{formatCOP(payload[0].value)}</p>
+      <p className="font-medium text-slate-400 mb-1.5">{label}</p>
+      {payload.map((p) => (
+        <p key={p.name} className="font-semibold" style={{ color: p.fill }}>
+          {p.name}: {formatCOP(p.value)}
+        </p>
+      ))}
     </div>
   );
 };
@@ -91,29 +128,24 @@ const PieTip = ({ active, payload }: {
   );
 };
 
-// ─── Stat card ───────────────────────────────────────────────────────────────
+// ─── Stat card ────────────────────────────────────────────────────────────────
 
-const StatCard = ({ label, value, sub, accent = false }: {
-  label: string; value: string; sub?: string; accent?: boolean;
+const StatCard = ({ label, value, sub, accent = false, color }: {
+  label: string; value: string; sub?: string; accent?: boolean; color?: string;
 }) => (
   <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
     <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-    <p className={`text-2xl font-bold mt-1 truncate ${accent ? "text-indigo-400" : "text-slate-100"}`}>{value}</p>
+    <p className={`text-2xl font-bold mt-1 truncate ${color ?? (accent ? "text-indigo-400" : "text-slate-100")}`}>{value}</p>
     {sub && <p className="text-xs text-slate-600 mt-0.5">{sub}</p>}
   </div>
 );
 
-// ─── Category breakdown with drill-down ──────────────────────────────────────
-
-const fmtDateShort = (s: string) => {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-};
+// ─── Category breakdown ───────────────────────────────────────────────────────
 
 interface CategoryBreakdownProps {
   byCategory: { name: string; value: number; fill: string }[];
   filtered: Bill[];
-  stats: { total: number; recordCount: number; topCategory?: { name: string; value: number } };
+  stats: { total: number; recordCount: number; topCategory?: { name: string; value: number } | null };
   rangeLabel: string;
 }
 
@@ -226,7 +258,7 @@ const CategoryBreakdown = ({ byCategory, filtered, stats, rangeLabel }: Category
   );
 };
 
-// ─── Dashboard ───────────────────────────────────────────────────────────────
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const { data, status }  = useSelector((state: { bills: BillsState }) => state.bills);
@@ -239,9 +271,9 @@ const Dashboard = () => {
     return m;
   }, [categories]);
 
-  const [preset, setPreset]       = useState<Preset>("year");
+  const [preset, setPreset]         = useState<Preset>("year");
   const [customFrom, setCustomFrom] = useState(firstOfMonthOffset(-2));
-  const [customTo, setCustomTo]   = useState(today());
+  const [customTo, setCustomTo]     = useState(today());
 
   const { from, to } = useMemo(() => {
     const cur     = today();
@@ -253,27 +285,33 @@ const Dashboard = () => {
       case "year":   return { from: `${curYear}-01-01`, to: cur };
       case "all": {
         const range = getDataDateRange(data);
-        return range ? { from: range.min, to: range.max } : { from: cur, to: cur };
+        if (!range) return { from: cur, to: cur };
+        const fromFull = range.min + "-01";
+        const [ty, tm] = range.max.split("-").map(Number);
+        const lastDay  = new Date(ty, tm, 0).getDate();
+        const toFull   = `${range.max}-${String(lastDay).padStart(2, "0")}`;
+        return { from: fromFull, to: toFull };
       }
       case "custom": return { from: customFrom || cur, to: customTo || cur };
     }
   }, [preset, customFrom, customTo, data]);
 
-  const filtered   = useMemo(() => filterBillsByRange(data, from, to), [data, from, to]);
-  const stats      = useMemo(() => getSummaryStats(filtered), [filtered]);
-  const trend      = useMemo(() => getMonthlyTrend(data, from, to), [data, from, to]);
+  const filtered      = useMemo(() => filterBillsByRange(data, from, to), [data, from, to]);
+  const stats         = useMemo(() => getSummaryStats(filtered), [filtered]);
+  const combinedTrend = useMemo(
+    () => getMonthlyTrendWithIncome(data, incomes, from, to),
+    [data, incomes, from, to]
+  );
   const byCategory = useMemo(
     () => getSpendingByCategory(filtered).map((cat) => ({ ...cat, fill: getCategoryColor(cat.name) })),
     [filtered]
   );
 
-  // Investment category names set
+  // Investment split
   const investmentCats = useMemo(
     () => new Set(categories.filter((c) => c.isInvestment).map((c) => c.name)),
     [categories]
   );
-
-  // Split expenses: operating vs investment
   const operatingTotal = useMemo(
     () => filtered.filter((b) => !investmentCats.has(b.category)).reduce((s, b) => s + (b.amount ?? 0), 0),
     [filtered, investmentCats]
@@ -283,13 +321,42 @@ const Dashboard = () => {
     [filtered, investmentCats]
   );
 
-  // Net balance: incomes vs expenses for the same period
+  // Income for period
   const incomeTotal = useMemo(
     () => incomes.filter((i) => i.date >= from && i.date <= to).reduce((s, i) => s + i.amount, 0),
     [incomes, from, to]
   );
   const balance    = incomeTotal - stats.total;
   const balancePos = balance >= 0;
+
+  // Derived stats
+  const daysDiff = useMemo(() => {
+    const diff = Math.round(
+      (parseLocal(to).getTime() - parseLocal(from).getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    return Math.max(1, diff);
+  }, [from, to]);
+
+  const dailyAvg       = stats.total / daysDiff;
+  const savingRate     = incomeTotal > 0 ? ((incomeTotal - stats.total) / incomeTotal) * 100 : null;
+  const monthsWithData = combinedTrend.filter((t) => t.gastos > 0).length || 1;
+  const monthlyAvg     = stats.total / monthsWithData;
+
+  // Top 5 individual expenses
+  const top5 = useMemo(
+    () => [...filtered].sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, 5),
+    [filtered]
+  );
+
+  // Drill-down: click bar → set custom range to that month
+  const handleBarClick = (barData: MonthStatCombined) => {
+    if (!barData?.key) return;
+    const [y, m] = barData.key.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    setCustomFrom(`${barData.key}-01`);
+    setCustomTo(`${barData.key}-${String(lastDay).padStart(2, "0")}`);
+    setPreset("custom");
+  };
 
   const loading = status === "checking" || status === "idle";
 
@@ -331,7 +398,7 @@ const Dashboard = () => {
         </div>
 
         {preset === "custom" && (
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-xs text-slate-500 font-medium">Desde</label>
             <input type="date" value={customFrom} max={customTo} onChange={(e) => setCustomFrom(e.target.value)}
               className="text-sm border border-slate-600 rounded-lg px-3 py-1.5 bg-slate-800 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
@@ -341,9 +408,21 @@ const Dashboard = () => {
           </div>
         )}
 
-        {preset !== "custom" && (
-          <span className="ml-auto text-xs text-slate-600 hidden sm:block">{rangeLabel}</span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {preset !== "custom" && (
+            <span className="text-xs text-slate-600 hidden sm:block">{rangeLabel}</span>
+          )}
+          {filtered.length > 0 && (
+            <button
+              onClick={() => exportToCSV(filtered, from, to)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:text-slate-100 hover:bg-slate-700 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Exportar CSV
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Balance neto ── */}
@@ -353,7 +432,6 @@ const Dashboard = () => {
           <span className="text-xs text-slate-600">{rangeLabel}</span>
         </div>
 
-        {/* Main figures */}
         <div className={`grid gap-4 ${investmentTotal > 0 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
           <div>
             <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Ingresos</p>
@@ -377,7 +455,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Visual ratio bar */}
         {(incomeTotal > 0 || stats.total > 0) && (() => {
           const total = incomeTotal + operatingTotal + investmentTotal;
           return (
@@ -418,33 +495,65 @@ const Dashboard = () => {
       </div>
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total gastos" value={formatCOP(stats.total)} sub={`${stats.recordCount} registros`} accent />
-        <StatCard label="Promedio mensual"
-          value={stats.recordCount > 0 ? formatCOP(stats.total / (trend.filter(t => t.total > 0).length || 1)) : "$0"}
-          sub={rangeLabel} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard
-          label="Categoría principal"
-          value={stats.topCategory ? `${emojiMap[stats.topCategory.name] ? emojiMap[stats.topCategory.name] + " " : ""}${stats.topCategory.name}` : "—"}
-          sub={stats.topCategory ? formatCOP(stats.topCategory.value) : undefined}
+          label="Total gastos"
+          value={formatCOP(stats.total)}
+          sub={`${stats.recordCount} registros`}
+          accent
+        />
+        <StatCard
+          label="Promedio mensual"
+          value={formatCOP(monthlyAvg)}
+          sub={`${monthsWithData} mes${monthsWithData !== 1 ? "es" : ""} con datos`}
+        />
+        <StatCard
+          label="Promedio diario"
+          value={formatCOP(dailyAvg)}
+          sub={`${daysDiff} día${daysDiff !== 1 ? "s" : ""} en el período`}
+        />
+        <StatCard
+          label="Tasa de ahorro"
+          value={savingRate !== null ? `${savingRate >= 0 ? "+" : ""}${savingRate.toFixed(1)}%` : "N/D"}
+          sub={savingRate !== null ? (savingRate >= 0 ? "Superávit en el período" : "Déficit en el período") : "Sin ingresos registrados"}
+          color={savingRate !== null ? (savingRate >= 0 ? "text-emerald-400" : "text-rose-400") : undefined}
         />
       </div>
 
       {/* ── Charts row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        {/* Bar chart */}
+
+        {/* Combined bar chart */}
         <div className="lg:col-span-3 bg-slate-900 rounded-xl border border-slate-800 shadow-lg p-5">
-          <h2 className="text-sm font-semibold text-slate-200 mb-4">Tendencia mensual</h2>
-          {trend.length === 0 ? (
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-200">Tendencia mensual</h2>
+              <p className="text-xs text-slate-600 mt-0.5">Clic en una barra para filtrar ese mes</p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block" />
+                Gastos
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />
+                Ingresos
+              </span>
+            </div>
+          </div>
+          {combinedTrend.length === 0 ? (
             <p className="text-sm text-slate-600 py-16 text-center">Sin datos en el período</p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={trend} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+              <BarChart data={combinedTrend} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={formatShort} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} width={52} />
-                <Tooltip content={<BarTip />} cursor={{ fill: "#1e293b" }} />
-                <Bar dataKey="total" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                <Tooltip content={<CombinedBarTip />} cursor={{ fill: "#1e293b" }} />
+                <Bar dataKey="gastos" name="Gastos" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={24}
+                  onClick={(d) => handleBarClick(d as unknown as MonthStatCombined)} style={{ cursor: "pointer" }} />
+                <Bar dataKey="ingresos" name="Ingresos" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={24}
+                  onClick={(d) => handleBarClick(d as unknown as MonthStatCombined)} style={{ cursor: "pointer" }} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -458,9 +567,9 @@ const Dashboard = () => {
             <p className="text-sm text-slate-600 py-16 text-center">Sin datos en el período</p>
           ) : (
             <>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie data={byCategory} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={2} dataKey="value" />
+                  <Pie data={byCategory} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2} dataKey="value" />
                   <Tooltip content={<PieTip />} />
                 </PieChart>
               </ResponsiveContainer>
@@ -479,9 +588,51 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* ── Top 5 gastos ── */}
+      {top5.length > 0 && (
+        <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-200">Top 5 gastos del período</h2>
+            <p className="text-xs text-slate-600 mt-0.5">{rangeLabel}</p>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {top5.map((bill, i) => {
+              const color = getCategoryColor(bill.category);
+              return (
+                <div key={bill._id}
+                  className="flex items-center gap-4 px-5 py-3 hover:bg-slate-800/40 transition-colors">
+                  <span className="text-xs font-bold text-slate-700 w-4 shrink-0 tabular-nums">{i + 1}</span>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-200 font-medium truncate">
+                      {(bill.name ?? "").charAt(0).toUpperCase() + (bill.name ?? "").slice(1)}
+                    </p>
+                    <p className="text-xs text-slate-600 truncate">
+                      {emojiMap[bill.category] ? `${emojiMap[bill.category]} ` : ""}{bill.category}
+                      {bill.detail ? ` · ${bill.detail}` : ""}
+                    </p>
+                  </div>
+                  <span className="text-xs text-slate-500 tabular-nums shrink-0 hidden sm:block">
+                    {bill.date ? fmtDateShort(bill.date) : ""}
+                  </span>
+                  <span className="text-sm font-bold tabular-nums shrink-0" style={{ color }}>
+                    {formatCOP(bill.amount ?? 0)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Category breakdown ── */}
       {byCategory.length > 0 && (
-        <CategoryBreakdown byCategory={byCategory} filtered={filtered} stats={stats} rangeLabel={rangeLabel} />
+        <CategoryBreakdown
+          byCategory={byCategory}
+          filtered={filtered}
+          stats={stats}
+          rangeLabel={rangeLabel}
+        />
       )}
     </div>
   );

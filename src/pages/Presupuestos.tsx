@@ -27,14 +27,42 @@ interface BudgetsState {
 const formatCOP = (v: number) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
 
+const toYM = (date: Date) => date.toISOString().slice(0, 7);
+
+const prevMonthYM = (ym: string): string => {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 2, 1);
+  return toYM(d);
+};
+
+const nextMonthYM = (ym: string): string => {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m, 1);
+  return toYM(d);
+};
+
+const daysInMonthYM = (ym: string): number => {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m, 0).getDate();
+};
+
+const monthLabel = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+};
+
 // ─── Budget row ───────────────────────────────────────────────────────────────
 
 interface BudgetRowProps {
-  category: string; spent: number; budget: number; budgetId?: string;
+  category: string;
+  spent: number;
+  prevSpent: number;
+  budget: number;
+  budgetId?: string;
   onEdit: (cat: string) => void;
 }
 
-const BudgetRow = ({ category, spent, budget, onEdit }: BudgetRowProps) => {
+const BudgetRow = ({ category, spent, prevSpent, budget, onEdit }: BudgetRowProps) => {
   const color    = getCategoryColor(category);
   const pct      = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
   const over     = budget > 0 && spent > budget;
@@ -42,10 +70,14 @@ const BudgetRow = ({ category, spent, budget, onEdit }: BudgetRowProps) => {
   const nobudget = budget === 0;
   const barColor = over ? "#f43f5e" : warn ? "#f59e0b" : color;
 
+  const delta = prevSpent > 0
+    ? Math.round(((spent - prevSpent) / prevSpent) * 100)
+    : null;
+
   return (
     <div className="flex items-center gap-4 px-5 py-4 border-b border-slate-800 last:border-0 hover:bg-slate-800/40 transition-colors">
-      <div className="flex items-center gap-2.5 w-40 flex-shrink-0">
-        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+      <div className="flex items-center gap-2.5 w-40 shrink-0">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <span className="text-sm text-slate-300 font-medium truncate">{category}</span>
       </div>
 
@@ -59,7 +91,14 @@ const BudgetRow = ({ category, spent, budget, onEdit }: BudgetRowProps) => {
           </div>
         )}
         <div className="flex items-center justify-between mt-1.5 text-xs text-slate-600">
-          <span>{nobudget ? "Sin presupuesto" : `${formatCOP(spent)} gastado`}</span>
+          <span className="flex items-center gap-1.5">
+            {nobudget ? "Sin presupuesto" : `${formatCOP(spent)} gastado`}
+            {delta !== null && (
+              <span className={`inline-flex items-center gap-0.5 font-medium ${delta > 0 ? "text-red-500" : "text-emerald-500"}`}>
+                {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}%
+              </span>
+            )}
+          </span>
           {!nobudget && (
             <span className={over ? "text-red-400 font-semibold" : warn ? "text-amber-400 font-semibold" : ""}>
               {over ? `+${formatCOP(spent - budget)} sobre el límite` : `${formatCOP(budget - spent)} disponible`}
@@ -68,7 +107,7 @@ const BudgetRow = ({ category, spent, budget, onEdit }: BudgetRowProps) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-3 shrink-0">
         <div className="text-right">
           {nobudget
             ? <span className="text-xs text-slate-700">—</span>
@@ -143,6 +182,11 @@ const EditModal = ({ category, current, onSave, onClose }: EditModalProps) => {
   );
 };
 
+// ─── Sort / Filter types ───────────────────────────────────────────────────────
+
+type SortBy = "default" | "exceeded" | "spent" | "alpha";
+type FilterMode = "all" | "risk" | "exceeded";
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Presupuestos = () => {
@@ -158,25 +202,49 @@ const Presupuestos = () => {
   );
   const { saveBudgetStore, deleteBudgetStore } = useBudgets();
 
+  const todayYM = toYM(new Date());
+  const [selectedMonth, setSelectedMonth] = useState(todayYM);
   const [editing, setEditing] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortBy>("default");
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
 
-  const expenseCategories = categories.filter((c) => c.type === "gasto");
+  const isCurrentMonth = selectedMonth === todayYM;
+  const prevMonth = prevMonthYM(selectedMonth);
 
-  // Derive budgets map: category → { amount, _id }
+  const expenseCategories = useMemo(
+    () => categories.filter((c) => c.type === "gasto"),
+    [categories]
+  );
+
   const budgetsMap = useMemo(() => {
     const map: Record<string, { amount: number; id: string }> = {};
     budgetsList.forEach((b) => { map[b.category] = { amount: b.amount, id: b._id }; });
     return map;
   }, [budgetsList]);
 
-  const currentMonth = new Date().toISOString().slice(0, 7);
-
   const spentByCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    bills.filter((b) => b.date?.startsWith(currentMonth))
+    bills.filter((b) => b.date?.startsWith(selectedMonth))
       .forEach((b) => { map[b.category] = (map[b.category] ?? 0) + (b.amount ?? 0); });
     return map;
-  }, [bills, currentMonth]);
+  }, [bills, selectedMonth]);
+
+  const prevSpentByCategory = useMemo(() => {
+    const map: Record<string, number> = {};
+    bills.filter((b) => b.date?.startsWith(prevMonth))
+      .forEach((b) => { map[b.category] = (map[b.category] ?? 0) + (b.amount ?? 0); });
+    return map;
+  }, [bills, prevMonth]);
+
+  // Projected spend for current month only
+  const projectedTotal = useMemo(() => {
+    if (!isCurrentMonth) return null;
+    const today = new Date().getDate();
+    const totalDays = daysInMonthYM(selectedMonth);
+    const totalSpent = Object.values(spentByCategory).reduce((s, v) => s + v, 0);
+    if (today === 0) return totalSpent;
+    return Math.round((totalSpent / today) * totalDays);
+  }, [isCurrentMonth, selectedMonth, spentByCategory]);
 
   const handleSave = async (value: number) => {
     if (editing === null) return;
@@ -196,6 +264,47 @@ const Presupuestos = () => {
     (c) => budgetsMap[c.name] && (spentByCategory[c.name] ?? 0) > budgetsMap[c.name].amount
   ).length;
 
+  // Sort + filter pipeline
+  const displayCategories = useMemo(() => {
+    let list = [...expenseCategories];
+
+    // Filter
+    if (filterMode === "risk") {
+      list = list.filter((c) => {
+        const budget = budgetsMap[c.name]?.amount ?? 0;
+        const spent = spentByCategory[c.name] ?? 0;
+        const pct = budget > 0 ? (spent / budget) * 100 : 0;
+        return pct >= 80;
+      });
+    } else if (filterMode === "exceeded") {
+      list = list.filter((c) => {
+        const budget = budgetsMap[c.name]?.amount ?? 0;
+        const spent = spentByCategory[c.name] ?? 0;
+        return budget > 0 && spent > budget;
+      });
+    }
+
+    // Sort
+    if (sortBy === "exceeded") {
+      list.sort((a, b) => {
+        const budgetA = budgetsMap[a.name]?.amount ?? 0;
+        const budgetB = budgetsMap[b.name]?.amount ?? 0;
+        const overA = budgetA > 0 && (spentByCategory[a.name] ?? 0) > budgetA ? 1 : 0;
+        const overB = budgetB > 0 && (spentByCategory[b.name] ?? 0) > budgetB ? 1 : 0;
+        if (overA !== overB) return overB - overA;
+        const pctA = budgetA > 0 ? (spentByCategory[a.name] ?? 0) / budgetA : 0;
+        const pctB = budgetB > 0 ? (spentByCategory[b.name] ?? 0) / budgetB : 0;
+        return pctB - pctA;
+      });
+    } else if (sortBy === "spent") {
+      list.sort((a, b) => (spentByCategory[b.name] ?? 0) - (spentByCategory[a.name] ?? 0));
+    } else if (sortBy === "alpha") {
+      list.sort((a, b) => a.name.localeCompare(b.name, "es"));
+    }
+
+    return list;
+  }, [expenseCategories, filterMode, sortBy, budgetsMap, spentByCategory]);
+
   const loading = billsStatus === "idle" || billsStatus === "checking"
     || budgetsStatus === "idle" || budgetsStatus === "checking";
 
@@ -210,21 +319,55 @@ const Presupuestos = () => {
     );
   }
 
-  const monthLabel = new Date().toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+  const canGoNext = selectedMonth < todayYM;
 
   return (
     <div className="space-y-6">
+
+      {/* Month navigation */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSelectedMonth(prevMonthYM(selectedMonth))}
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-base font-semibold text-slate-100 capitalize w-44 text-center">
+            {monthLabel(selectedMonth)}
+          </h1>
+          <button
+            onClick={() => setSelectedMonth(nextMonthYM(selectedMonth))}
+            disabled={!canGoNext}
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          {!isCurrentMonth && (
+            <button
+              onClick={() => setSelectedMonth(todayYM)}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors ml-1">
+              Volver al mes actual
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Presupuestado</p>
           <p className="text-2xl font-bold mt-1 text-slate-100">{formatCOP(totalBudgeted)}</p>
           <p className="text-xs text-slate-600 mt-0.5">{budgetedCount} categorías configuradas</p>
         </div>
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Gastado este mes</p>
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            {isCurrentMonth ? "Gastado este mes" : "Total gastado"}
+          </p>
           <p className="text-2xl font-bold mt-1 text-indigo-400">{formatCOP(totalSpent)}</p>
-          <p className="text-xs text-slate-600 mt-0.5 capitalize">{monthLabel}</p>
+          <p className="text-xs text-slate-600 mt-0.5 capitalize">{monthLabel(selectedMonth)}</p>
         </div>
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Categorías excedidas</p>
@@ -233,23 +376,76 @@ const Presupuestos = () => {
           </p>
           <p className="text-xs text-slate-600 mt-0.5">de {budgetedCount} con presupuesto</p>
         </div>
+        {isCurrentMonth && projectedTotal !== null ? (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Proyección al cierre</p>
+            <p className={`text-2xl font-bold mt-1 ${projectedTotal > totalBudgeted && totalBudgeted > 0 ? "text-red-400" : "text-amber-400"}`}>
+              {formatCOP(projectedTotal)}
+            </p>
+            <p className="text-xs text-slate-600 mt-0.5">
+              día {new Date().getDate()} de {daysInMonthYM(selectedMonth)}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg px-5 py-4">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">vs mes anterior</p>
+            {(() => {
+              const prevTotal = Object.values(prevSpentByCategory).reduce((s, v) => s + v, 0);
+              const delta = prevTotal > 0 ? Math.round(((totalSpent - prevTotal) / prevTotal) * 100) : null;
+              return (
+                <>
+                  <p className={`text-2xl font-bold mt-1 ${delta !== null && delta > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                    {delta !== null ? `${delta > 0 ? "+" : ""}${delta}%` : "—"}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5 capitalize">
+                    {prevTotal > 0 ? `Anterior: ${formatCOP(prevTotal)}` : "Sin datos anteriores"}
+                  </p>
+                </>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Table */}
       <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg">
-        <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-800 flex flex-wrap items-center gap-3 justify-between">
           <div>
             <h2 className="text-sm font-semibold text-slate-200">Presupuesto por categoría</h2>
-            <p className="text-xs text-slate-600 mt-0.5 capitalize">{monthLabel}</p>
+            <p className="text-xs text-slate-600 mt-0.5 capitalize">{monthLabel(selectedMonth)}</p>
           </div>
-          <p className="text-xs text-slate-600">
-            Haz clic en{" "}
-            <svg className="w-3.5 h-3.5 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>{" "}
-            para configurar
-          </p>
+
+          {/* Sort + Filter controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Filter pills */}
+            <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
+              {(["all", "risk", "exceeded"] as FilterMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setFilterMode(mode)}
+                  className={`px-2.5 py-1 text-xs rounded-md transition-colors font-medium ${
+                    filterMode === mode
+                      ? "bg-slate-700 text-slate-100"
+                      : "text-slate-500 hover:text-slate-300"
+                  }`}>
+                  {mode === "all" ? "Todas" : mode === "risk" ? "En riesgo" : "Excedidas"}
+                </button>
+              ))}
+            </div>
+
+            {/* Sort select */}
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              className="text-xs bg-slate-800 border border-slate-700 text-slate-400 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
+              <option value="default">Orden por defecto</option>
+              <option value="exceeded">Más excedidas primero</option>
+              <option value="spent">Mayor gasto primero</option>
+              <option value="alpha">Alfabético</option>
+            </select>
+          </div>
         </div>
+
         <div>
           {expenseCategories.length === 0 ? (
             <p className="text-sm text-slate-600 px-5 py-8 text-center">
@@ -258,12 +454,17 @@ const Presupuestos = () => {
                 Agrégalas en Configuración.
               </a>
             </p>
+          ) : displayCategories.length === 0 ? (
+            <p className="text-sm text-slate-600 px-5 py-8 text-center">
+              No hay categorías que coincidan con el filtro.
+            </p>
           ) : (
-            expenseCategories.map((cat) => (
+            displayCategories.map((cat) => (
               <BudgetRow
                 key={cat._id}
                 category={`${emojiMap[cat.name] ? emojiMap[cat.name] + " " : ""}${cat.name}`}
                 spent={spentByCategory[cat.name] ?? 0}
+                prevSpent={prevSpentByCategory[cat.name] ?? 0}
                 budget={budgetsMap[cat.name]?.amount ?? 0}
                 budgetId={budgetsMap[cat.name]?.id}
                 onEdit={(_label) => setEditing(cat.name)}

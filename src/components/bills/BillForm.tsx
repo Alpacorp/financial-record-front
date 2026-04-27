@@ -74,7 +74,7 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   const [voiceSupported]            = useState(() =>
     typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
   );
-  const recognitionRef = useRef<InstanceType<typeof window.SpeechRecognition> | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Cleanup recognition on unmount
   useEffect(() => {
@@ -82,15 +82,15 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
   }, []);
 
   const startRecording = () => {
-    const SR = (window.SpeechRecognition ?? (window as unknown as { webkitSpeechRecognition: typeof window.SpeechRecognition }).webkitSpeechRecognition);
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     const recognition = new SR();
     recognition.lang = "es-CO";
     recognition.interimResults = true;
     recognition.continuous = false;
 
-    recognition.onresult = (e: SpeechRecognitionEvent) => {
+    recognition.onresult = (e) => {
       const transcript = Array.from(e.results)
-        .map((r) => r[0].transcript)
+        .map((r: SpeechRecognitionResult) => r[0].transcript)
         .join("");
       setAiText(transcript);
       setAiError(null);

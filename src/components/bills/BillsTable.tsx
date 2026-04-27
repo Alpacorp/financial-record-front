@@ -208,18 +208,18 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg">
 
         {/* Summary bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-slate-800 rounded-t-xl overflow-hidden border-b border-slate-800">
-          <div className="bg-slate-900 px-5 py-3">
-            <p className="text-xs text-slate-500 font-medium">Total registros</p>
-            <p className="text-lg font-bold text-slate-100">{data.length}</p>
+        <div className="grid grid-cols-3 gap-px bg-slate-800 rounded-t-xl overflow-hidden border-b border-slate-800">
+          <div className="bg-slate-900 px-3 sm:px-5 py-3">
+            <p className="text-xs text-slate-500 font-medium truncate">Total registros</p>
+            <p className="text-base sm:text-lg font-bold text-slate-100">{data.length}</p>
           </div>
-          <div className="bg-slate-900 px-5 py-3">
-            <p className="text-xs text-slate-500 font-medium">Este mes</p>
-            <p className="text-lg font-bold text-indigo-400">{formatCurrency(monthAmount)}</p>
+          <div className="bg-slate-900 px-3 sm:px-5 py-3">
+            <p className="text-xs text-slate-500 font-medium truncate">Este mes</p>
+            <p className="text-base sm:text-lg font-bold text-indigo-400 truncate">{formatCurrency(monthAmount)}</p>
           </div>
-          <div className="bg-slate-900 px-5 py-3 hidden sm:block">
-            <p className="text-xs text-slate-500 font-medium">Total histórico</p>
-            <p className="text-lg font-bold text-slate-100">{formatCurrency(totalAmount)}</p>
+          <div className="bg-slate-900 px-3 sm:px-5 py-3">
+            <p className="text-xs text-slate-500 font-medium truncate">Total histórico</p>
+            <p className="text-base sm:text-lg font-bold text-slate-100 truncate">{formatCurrency(totalAmount)}</p>
           </div>
         </div>
 

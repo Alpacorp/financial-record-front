@@ -150,7 +150,7 @@ const Creditos = () => {
         <StatCard label="Total financiado" value={formatCOP(totalFinanced)} sub={`${enriched.length} compras a crédito`} />
       </div>
 
-      <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-fit shadow-lg">
+      <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1 w-full sm:w-fit shadow-lg">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

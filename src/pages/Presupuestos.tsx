@@ -446,7 +446,7 @@ const Presupuestos = () => {
           </div>
         </div>
 
-        <div>
+        <div className="overflow-x-auto">
           {expenseCategories.length === 0 ? (
             <p className="text-sm text-slate-600 px-5 py-8 text-center">
               No hay categorías de gastos.{" "}
@@ -459,7 +459,8 @@ const Presupuestos = () => {
               No hay categorías que coincidan con el filtro.
             </p>
           ) : (
-            displayCategories.map((cat) => (
+            <div className="min-w-[520px]">
+            {displayCategories.map((cat) => (
               <BudgetRow
                 key={cat._id}
                 category={`${emojiMap[cat.name] ? emojiMap[cat.name] + " " : ""}${cat.name}`}
@@ -469,7 +470,8 @@ const Presupuestos = () => {
                 budgetId={budgetsMap[cat.name]?.id}
                 onEdit={(_label) => setEditing(cat.name)}
               />
-            ))
+            ))}
+            </div>
           )}
         </div>
       </div>

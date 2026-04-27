@@ -9,6 +9,16 @@ export default defineConfig({
     port: 3000,
   },
   build: {
-    outDir: "build", // mantiene compatibilidad con Railway
+    outDir: "build",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react":  ["react", "react-dom", "react-router-dom"],
+          "vendor-state":  ["@reduxjs/toolkit", "react-redux"],
+          "vendor-charts": ["recharts"],
+          "vendor-table":  ["@tanstack/react-table"],
+        },
+      },
+    },
   },
 });

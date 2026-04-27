@@ -521,7 +521,8 @@ const Ingresos = () => {
         {rows.length === 0 ? (
           <div className="text-center py-16 text-slate-600 text-sm">No hay registros</div>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div className="overflow-x-auto">
+          <div className="divide-y divide-slate-800 min-w-[540px]">
             {rows.map((inc) => {
               const color = getIncomeColor(inc.category);
               return (
@@ -561,6 +562,7 @@ const Ingresos = () => {
                 </div>
               );
             })}
+          </div>
           </div>
         )}
       </div>

@@ -360,7 +360,7 @@ const WhatsAppSection = () => {
               <p className="text-xs font-semibold text-slate-400 mb-1.5">¿Cómo funciona?</p>
               <ol className="text-xs text-slate-500 space-y-1 list-decimal list-inside">
                 <li>Registra tu número aquí y guarda</li>
-                <li>Escribe a <span className="text-emerald-400 font-medium">+1 (415) 523-8886</span> en WhatsApp con el mensaje <span className="text-emerald-400 font-medium">join &lt;tu-palabra&gt;</span></li>
+                <li>Escribe a <span className="text-emerald-400 font-medium">+1 (415) 523-8886</span> en WhatsApp con el mensaje <span className="text-emerald-400 font-medium">join powder.ill</span></li>
                 <li>Describe tu gasto en lenguaje natural y confirma</li>
               </ol>
             </div>

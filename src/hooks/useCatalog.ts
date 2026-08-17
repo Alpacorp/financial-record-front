@@ -5,10 +5,17 @@ import {
   onGetCatalogSuccess,
   onSetCategories,
   onSetPayChannels,
+  onSetTags,
   onCatalogFailure,
 } from "../store/catalog/catalogSlice";
 import { useNotification } from "../context/NotificationContext";
 import { Category, PayChannel } from "../types/catalog";
+
+/** Mensaje del backend si lo hay (ej: nombre de marca duplicado). */
+const apiMessage = (error: unknown, fallback: string): string => {
+  const msg = (error as { response?: { data?: { msg?: string } } })?.response?.data?.msg;
+  return msg ?? fallback;
+};
 
 export const useCatalog = () => {
   const dispatch = useDispatch();
@@ -19,14 +26,18 @@ export const useCatalog = () => {
   const getCatalogStore = async () => {
     dispatch(onCheckingCatalog());
     try {
-      const [catRes, pmRes] = await Promise.all([
+      const [catRes, pmRes, tagRes] = await Promise.all([
         billsApi.get("/categories"),
         billsApi.get("/paychannels"),
+        // Tolerante a un backend aún sin /tags: sin esto un 404 tumbaría
+        // también las categorías y los métodos de pago
+        billsApi.get("/tags").catch(() => ({ data: { tags: [] } })),
       ]);
       dispatch(
         onGetCatalogSuccess({
           categories: catRes.data.categories,
           payChannels: pmRes.data.payChannels,
+          tags: tagRes.data.tags,
         })
       );
     } catch (error: unknown) {
@@ -130,6 +141,18 @@ export const useCatalog = () => {
     }
   };
 
+  // Marca/desmarca un canal como tarjeta de crédito. Determina si sus compras
+  // salen de la caja al comprar o al pagar la tarjeta (ver CardPayment).
+  const toggleCreditCard = async (id: string, current: boolean) => {
+    try {
+      await billsApi.put(`/paychannels/${id}`, { isCreditCard: !current });
+      const { data } = await billsApi.get("/paychannels");
+      dispatch(onSetPayChannels(data.payChannels));
+    } catch {
+      notify({ message: "Error al actualizar el método", severity: "error" });
+    }
+  };
+
   const updatePayChannel = async (id: string, name: string) => {
     try {
       await billsApi.put(`/paychannels/${id}`, { name });
@@ -152,9 +175,81 @@ export const useCatalog = () => {
     }
   };
 
+  // ── Tags (marcas) ─────────────────────────────────────────────────────────
+
+  const refreshTags = async () => {
+    const { data } = await billsApi.get("/tags");
+    dispatch(onSetTags(data.tags));
+  };
+
+  const createTag = async (name: string): Promise<boolean> => {
+    try {
+      await billsApi.post("/tags/new", { name });
+      await refreshTags();
+      notify({ message: "Marca creada", severity: "success" });
+      return true;
+    } catch (error: unknown) {
+      notify({ message: apiMessage(error, "Error al crear la marca"), severity: "error" });
+      return false;
+    }
+  };
+
+  // Renombrar arrastra la marca en todos los gastos que la usaban (lo hace el backend)
+  const updateTag = async (id: string, name: string): Promise<boolean> => {
+    try {
+      const { data } = await billsApi.put(`/tags/${id}`, { name });
+      await refreshTags();
+      notify({
+        message: data.billsUpdated > 0
+          ? `Marca actualizada en ${data.billsUpdated} gasto${data.billsUpdated !== 1 ? "s" : ""}`
+          : "Marca actualizada",
+        severity: "success",
+      });
+      return true;
+    } catch (error: unknown) {
+      notify({ message: apiMessage(error, "Error al actualizar la marca"), severity: "error" });
+      return false;
+    }
+  };
+
+  const updateTagEmoji = async (id: string, emoji: string) => {
+    try {
+      await billsApi.put(`/tags/${id}`, { emoji });
+      await refreshTags();
+    } catch {
+      notify({ message: "Error al guardar el emoji", severity: "error" });
+    }
+  };
+
+  const updateTagDescription = async (id: string, description: string) => {
+    try {
+      await billsApi.put(`/tags/${id}`, { description });
+      await refreshTags();
+      notify({ message: "Descripción guardada", severity: "success" });
+    } catch {
+      notify({ message: "Error al guardar la descripción", severity: "error" });
+    }
+  };
+
+  const deleteTag = async (id: string) => {
+    try {
+      const { data } = await billsApi.delete(`/tags/${id}`);
+      await refreshTags();
+      notify({
+        message: data.billsUpdated > 0
+          ? `Marca eliminada de ${data.billsUpdated} gasto${data.billsUpdated !== 1 ? "s" : ""}`
+          : "Marca eliminada",
+        severity: "success",
+      });
+    } catch {
+      notify({ message: "Error al eliminar la marca", severity: "error" });
+    }
+  };
+
   return {
     getCatalogStore,
+    createTag, updateTag, updateTagEmoji, updateTagDescription, deleteTag,
     createCategory, updateCategory, deleteCategory, toggleInvestment, updateCategoryEmoji,
-    createPayChannel, updatePayChannel, deletePayChannel, togglePayChannelType,
+    createPayChannel, updatePayChannel, deletePayChannel, togglePayChannelType, toggleCreditCard,
   };
 };

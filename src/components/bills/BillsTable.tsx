@@ -6,13 +6,14 @@ import {
 } from "@tanstack/react-table";
 import { useSelector } from "react-redux";
 import { Bill, BillFormValues } from "../../types/bill";
-import { getCategoryColor } from "../../constants/categories";
-import { Category, PayChannel } from "../../types/catalog";
+import { getCategoryColor, getTagColor } from "../../constants/categories";
+import { Category, PayChannel, Tag } from "../../types/catalog";
 import { useEmojiMap } from "../../hooks/useEmojiMap";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  tags: Tag[];
 }
 import ConfirmDeleteDialog from "../ConfirmDeleteDialog";
 import EditBillModal from "./EditBillModal";
@@ -49,10 +50,19 @@ const typeBadge = (type: string) => {
 
 const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
+/** Valor especial del filtro de marcas para "gastos sin ninguna marca". */
+const NO_TAG = "__none__";
+
 const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
-  const { categories } = useSelector((state: { catalog: CatalogState }) => state.catalog);
+  const { categories, tags } = useSelector((state: { catalog: CatalogState }) => state.catalog);
   const expenseCategories = categories.filter((c) => c.type === "gasto");
   const emojiMap = useEmojiMap();
+
+  const tagEmojiMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    tags.forEach((t) => { if (t.emoji) m[t.name] = t.emoji; });
+    return m;
+  }, [tags]);
 
   const [sorting, setSorting]             = useState<SortingState>([{ id: "date", desc: true }]);
   const [globalFilter, setGlobalFilter]   = useState("");
@@ -62,6 +72,8 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
   const [filterPaymethod, setFilterPaymethod] = useState("");
   const [filterAmountMin, setFilterAmountMin] = useState("");
   const [filterAmountMax, setFilterAmountMax] = useState("");
+  // Marcas seleccionadas: un gasto debe llevarlas todas (AND)
+  const [filterTags, setFilterTags]           = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget]   = useState<Bill | null>(null);
   const [editTarget, setEditTarget]       = useState<Bill | null>(null);
 
@@ -79,12 +91,36 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
     return f;
   }, [filterCategory, filterType, filterPaymethod, filterAmountMin, filterAmountMax]);
 
-  const activeFilterCount = [filterCategory, filterType, filterPaymethod, filterAmountMin || filterAmountMax].filter(Boolean).length;
+  // Las marcas son un array que puede venir vacío o ausente en documentos
+  // antiguos, así que se filtran antes de la tabla en vez de con un columnFilter.
+  const visibleData = useMemo(
+    () => data.filter((b) => {
+      if (filterTags.length === 0) return true;
+      const billTags = b.tags ?? [];
+      if (filterTags.includes(NO_TAG)) return billTags.length === 0;
+      return filterTags.every((t) => billTags.includes(t));
+    }),
+    [data, filterTags]
+  );
+
+  const activeFilterCount = [
+    filterCategory, filterType, filterPaymethod,
+    filterAmountMin || filterAmountMax, filterTags.length > 0,
+  ].filter(Boolean).length;
 
   const clearFilters = () => {
     setFilterCategory(""); setFilterType(""); setFilterPaymethod("");
     setFilterAmountMin(""); setFilterAmountMax("");
+    setFilterTags([]);
   };
+
+  // "Sin marcas" es excluyente con el resto
+  const toggleTagFilter = (name: string) =>
+    setFilterTags((prev) => {
+      if (prev.includes(name)) return prev.filter((t) => t !== name);
+      if (name === NO_TAG) return [NO_TAG];
+      return [...prev.filter((t) => t !== NO_TAG), name];
+    });
 
   const columns = useMemo(() => [
     columnHelper.accessor("date", {
@@ -152,6 +188,31 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       size: 70,
     }),
     columnHelper.display({
+      id: "tags",
+      header: "Marcas",
+      cell: ({ row }) => {
+        const billTags = row.original.tags ?? [];
+        if (billTags.length === 0) return <span className="text-slate-700 text-xs">—</span>;
+        return (
+          <div className="flex flex-wrap items-center gap-1">
+            {billTags.map((name) => {
+              const color = getTagColor(name);
+              const emoji = tagEmojiMap[name];
+              return (
+                <span key={name} title={name}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium"
+                  style={{ backgroundColor: `${color}20`, color }}>
+                  {emoji ? <span className="leading-none">{emoji}</span> : null}
+                  <span className="truncate max-w-[90px]">{name}</span>
+                </span>
+              );
+            })}
+          </div>
+        );
+      },
+      size: 140,
+    }),
+    columnHelper.display({
       id: "actions",
       header: "",
       cell: ({ row }) => (
@@ -172,11 +233,11 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
       ),
       size: 80,
     }),
-  ], [emojiMap]);
+  ], [emojiMap, tagEmojiMap]);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
-    data, columns,
+    data: visibleData, columns,
     state: { sorting, globalFilter, columnFilters },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -193,8 +254,11 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
   const monthAmount  = data.filter((b) => b.date?.startsWith(currentMonth)).reduce((sum, b) => sum + (b.amount || 0), 0);
 
   const exportCsv = () => {
-    const headers = ["Fecha","Nombre","Categoría","Detalle","Monto","Tipo","Método","Cuotas"];
-    const rows = data.map((b) => [b.date, b.name, b.category, b.detail, b.amount, b.type, b.paymethod, b.dues ?? ""]);
+    const headers = ["Fecha","Nombre","Categoría","Detalle","Monto","Tipo","Método","Cuotas","Marcas"];
+    const rows = visibleData.map((b) => [
+      b.date, b.name, b.category, b.detail, b.amount, b.type, b.paymethod, b.dues ?? "",
+      (b.tags ?? []).join(" | "),
+    ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -314,6 +378,36 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
                   <span className="text-slate-600 text-sm">—</span>
                 </div>
               </div>
+              {tags.length > 0 && (
+                <div className="flex flex-col gap-1 w-full">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Marcas <span className="normal-case font-normal text-slate-600">· deben cumplirse todas</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tags.map((tag) => {
+                      const active = filterTags.includes(tag.name);
+                      const color = getTagColor(tag.name);
+                      return (
+                        <button key={tag._id} type="button" onClick={() => toggleTagFilter(tag.name)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            active ? "" : "bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200"
+                          }`}
+                          style={active ? { backgroundColor: `${color}20`, borderColor: `${color}66`, color } : undefined}>
+                          {tag.emoji ? `${tag.emoji} ` : ""}{tag.name}
+                        </button>
+                      );
+                    })}
+                    <button type="button" onClick={() => toggleTagFilter(NO_TAG)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        filterTags.includes(NO_TAG)
+                          ? "bg-indigo-600 border-indigo-500 text-white"
+                          : "bg-slate-800 border-slate-600 text-slate-400 hover:text-slate-200"
+                      }`}>
+                      Sin marcas
+                    </button>
+                  </div>
+                </div>
+              )}
               {activeFilterCount > 0 && (
                 <button onClick={clearFilters}
                   className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors self-end">
@@ -386,7 +480,7 @@ const BillsTable = ({ data, loading, onUpdate, onDelete }: BillsTableProps) => {
         </div>
 
         {/* Pagination */}
-        {!loading && data.length > 0 && (
+        {!loading && visibleData.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-4 border-t border-slate-800">
             <span className="text-sm text-slate-500">
               Mostrando{" "}

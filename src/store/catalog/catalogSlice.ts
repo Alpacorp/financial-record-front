@@ -1,9 +1,10 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { Category, PayChannel } from "../../types/catalog";
+import { Category, PayChannel, Tag } from "../../types/catalog";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  tags: Tag[];
   status: "idle" | "checking" | "success" | "failure";
   error: string | undefined;
 }
@@ -11,6 +12,7 @@ interface CatalogState {
 const initialState: CatalogState = {
   categories: [],
   payChannels: [],
+  tags: [],
   status: "idle",
   error: undefined,
 };
@@ -25,11 +27,12 @@ export const catalogSlice = createSlice({
     },
     onGetCatalogSuccess: (
       state,
-      action: PayloadAction<{ categories: Category[]; payChannels: PayChannel[] }>
+      action: PayloadAction<{ categories: Category[]; payChannels: PayChannel[]; tags: Tag[] }>
     ) => {
       state.status = "success";
       state.categories = action.payload.categories;
       state.payChannels = action.payload.payChannels;
+      state.tags = action.payload.tags;
       state.error = undefined;
     },
     onSetCategories: (state, action: PayloadAction<Category[]>) => {
@@ -37,6 +40,9 @@ export const catalogSlice = createSlice({
     },
     onSetPayChannels: (state, action: PayloadAction<PayChannel[]>) => {
       state.payChannels = action.payload;
+    },
+    onSetTags: (state, action: PayloadAction<Tag[]>) => {
+      state.tags = action.payload;
     },
     onCatalogFailure: (state, action: PayloadAction<string>) => {
       state.status = "failure";
@@ -50,5 +56,6 @@ export const {
   onGetCatalogSuccess,
   onSetCategories,
   onSetPayChannels,
+  onSetTags,
   onCatalogFailure,
 } = catalogSlice.actions;

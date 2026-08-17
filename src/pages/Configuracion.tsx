@@ -1,22 +1,30 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useSelector } from "react-redux";
-import { getCategoryColor } from "../constants/categories";
+import { getCategoryColor, getTagColor } from "../constants/categories";
 import { useCatalog } from "../hooks/useCatalog";
-import { Category, PayChannel } from "../types/catalog";
+import { useBills } from "../hooks/useBills";
+import { Category, PayChannel, Tag } from "../types/catalog";
+import { Bill } from "../types/bill";
 import billsApi from "../apis/billsApi";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  tags: Tag[];
   status: "idle" | "checking" | "success" | "failure";
 }
 
-type Tab = "gasto" | "ingreso" | "metodos";
+interface BillsState {
+  data: Bill[];
+}
+
+type Tab = "gasto" | "ingreso" | "metodos" | "marcas";
 
 const TABS: { id: Tab; label: string; labelShort: string; icon: string }[] = [
   { id: "gasto",   label: "Categorías Gastos",  labelShort: "Cat. Gastos",   icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   { id: "ingreso", label: "Categorías Ingresos", labelShort: "Cat. Ingresos", icon: "M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" },
   { id: "metodos", label: "Métodos de Pago",     labelShort: "Métodos",       icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" },
+  { id: "marcas",  label: "Marcas",               labelShort: "Marcas",        icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" },
 ];
 
 // ─── Emoji picker (inline) ────────────────────────────────────────────────────
@@ -166,6 +174,143 @@ const CategoryRow = ({ item, showInvestmentToggle, onSave, onDelete, onToggleInv
   );
 };
 
+// ─── Tag row ──────────────────────────────────────────────────────────────────
+
+interface TagRowProps {
+  item: Tag;
+  usageCount: number;
+  onSave: (id: string, name: string) => Promise<boolean>;
+  onSaveEmoji: (id: string, emoji: string) => Promise<void>;
+  onSaveDescription: (id: string, description: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}
+
+const TagRow = ({ item, usageCount, onSave, onSaveEmoji, onSaveDescription, onDelete }: TagRowProps) => {
+  const [editing, setEditing]           = useState(false);
+  const [draft, setDraft]               = useState(item.name);
+  const [saving, setSaving]             = useState(false);
+  const [confirming, setConfirming]     = useState(false);
+  const [editingDesc, setEditingDesc]   = useState(false);
+  const [descDraft, setDescDraft]       = useState(item.description ?? "");
+  const [savingDesc, setSavingDesc]     = useState(false);
+
+  const color = getTagColor(item.name);
+
+  const handleSave = async () => {
+    if (!draft.trim() || draft === item.name) { setEditing(false); setDraft(item.name); return; }
+    setSaving(true);
+    const ok = await onSave(item._id, draft.trim());
+    setSaving(false);
+    // Si el nombre está repetido el backend lo rechaza: se deja el input abierto
+    if (ok) setEditing(false); else setDraft(item.name);
+  };
+
+  const handleSaveDesc = async () => {
+    setSavingDesc(true);
+    await onSaveDescription(item._id, descDraft.trim());
+    setSavingDesc(false);
+    setEditingDesc(false);
+  };
+
+  return (
+    <div className="px-4 py-3 border-b border-slate-800 last:border-0 hover:bg-slate-800/30 transition-colors">
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+        <EmojiPicker emoji={item.emoji} onSave={(e) => onSaveEmoji(item._id, e)} />
+
+        {editing ? (
+          <input autoFocus value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") { setEditing(false); setDraft(item.name); } }}
+            className="flex-1 px-2 py-1 text-sm bg-slate-800 border border-indigo-500 rounded text-slate-100 focus:outline-none min-w-0"
+          />
+        ) : (
+          <span className="flex-1 text-sm text-slate-300 truncate min-w-0">{item.name}</span>
+        )}
+
+        <span className="text-xs text-slate-600 tabular-nums flex-shrink-0 hidden sm:block">
+          {usageCount} gasto{usageCount !== 1 ? "s" : ""}
+        </span>
+
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {editing ? (
+            <>
+              <button onClick={handleSave} disabled={saving}
+                className="px-2.5 py-1 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50">
+                {saving ? "..." : "Guardar"}
+              </button>
+              <button onClick={() => { setEditing(false); setDraft(item.name); }}
+                className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200">Cancelar</button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => { setEditingDesc((v) => !v); setDescDraft(item.description ?? ""); setConfirming(false); }}
+                title="Describir cuándo aplicar esta marca (lo usa la IA)"
+                className={`p-1.5 rounded-lg transition-colors ${
+                  editingDesc ? "text-violet-400 bg-violet-500/10" : "text-slate-500 hover:text-violet-400 hover:bg-violet-500/10"
+                }`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+              <button onClick={() => { setEditing(true); setConfirming(false); }}
+                className="p-1.5 text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              {confirming ? (
+                <>
+                  <button onClick={async () => { await onDelete(item._id); }}
+                    className="px-2 py-1 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-500">Sí</button>
+                  <button onClick={() => setConfirming(false)}
+                    className="px-2 py-1 text-xs text-slate-500 hover:text-slate-300">No</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirming(true)}
+                  className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Aviso antes de borrar: la marca desaparece de los gastos que la usan */}
+      {confirming && usageCount > 0 && (
+        <p className="text-xs text-red-400/80 mt-2 pl-5">
+          Se quitará de {usageCount} gasto{usageCount !== 1 ? "s" : ""}. Los gastos no se borran.
+        </p>
+      )}
+
+      {/* Descripción: es la pista que lee la IA para aplicar la marca sola */}
+      {editingDesc ? (
+        <div className="mt-2 pl-5">
+          <textarea autoFocus rows={2} value={descDraft}
+            onChange={(e) => setDescDraft(e.target.value)}
+            placeholder="Ej: gastos relacionados con mi actividad profesional: herramientas, transporte a clientes, software…"
+            className="w-full px-3 py-2 text-sm bg-slate-800 border border-violet-500/50 rounded-lg text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-xs text-slate-600">La IA usa esta descripción para aplicar la marca sola al registrar por voz o WhatsApp.</p>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button onClick={() => setEditingDesc(false)} className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200">Cancelar</button>
+              <button onClick={handleSaveDesc} disabled={savingDesc}
+                className="px-3 py-1 text-xs font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-50">
+                {savingDesc ? "..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : item.description ? (
+        <p className="text-xs text-slate-600 mt-1 pl-5 truncate">{item.description}</p>
+      ) : null}
+    </div>
+  );
+};
+
 // ─── PayChannel row ───────────────────────────────────────────────────────────
 
 interface PayChannelRowProps {
@@ -173,9 +318,10 @@ interface PayChannelRowProps {
   onSave: (id: string, name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onToggleType: (id: string, toggle: "contado" | "credito", current: PayChannel["type"]) => Promise<void>;
+  onToggleCreditCard: (id: string, current: boolean) => Promise<void>;
 }
 
-const PayChannelRow = ({ item, onSave, onDelete, onToggleType }: PayChannelRowProps) => {
+const PayChannelRow = ({ item, onSave, onDelete, onToggleType, onToggleCreditCard }: PayChannelRowProps) => {
   const [editing, setEditing]       = useState(false);
   const [draft, setDraft]           = useState(item.name);
   const [saving, setSaving]         = useState(false);
@@ -219,6 +365,19 @@ const PayChannelRow = ({ item, onSave, onDelete, onToggleType }: PayChannelRowPr
                 hasCredito ? "bg-violet-500/20 text-violet-400 border border-violet-500/30" : "bg-slate-800 text-slate-500 border border-slate-700 hover:border-violet-500/30 hover:text-violet-400"
               }`}>
               Crédito
+            </button>
+            {/* Tarjeta de crédito: la compra causa el gasto, pero el dinero
+                sale de la caja cuando se paga la tarjeta */}
+            <button onClick={() => onToggleCreditCard(item._id, item.isCreditCard ?? false)}
+              title={item.isCreditCard
+                ? "Es tarjeta de crédito: sus compras salen de caja al pagar la tarjeta"
+                : "Marcar como tarjeta de crédito"}
+              className={`px-2 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                item.isCreditCard
+                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  : "bg-slate-800 text-slate-500 border border-slate-700 hover:border-amber-500/30 hover:text-amber-400"
+              }`}>
+              💳 Tarjeta
             </button>
           </>
         )}
@@ -476,13 +635,16 @@ const WhatsAppSection = () => {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Configuracion = () => {
-  const { categories, payChannels, status } = useSelector(
+  const { categories, payChannels, tags, status } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
+  const { data: bills } = useSelector((state: { bills: BillsState }) => state.bills);
   const {
     createCategory, updateCategory, deleteCategory, toggleInvestment, updateCategoryEmoji,
-    createPayChannel, updatePayChannel, deletePayChannel, togglePayChannelType,
+    createPayChannel, updatePayChannel, deletePayChannel, togglePayChannelType, toggleCreditCard,
+    createTag, updateTag, updateTagEmoji, updateTagDescription, deleteTag,
   } = useCatalog();
+  const { getBillsStore } = useBills();
 
   const [tab, setTab] = useState<Tab>("gasto");
 
@@ -491,20 +653,45 @@ const Configuracion = () => {
 
   const loading = status === "idle" || status === "checking";
 
+  // Cuántos gastos usa cada marca: se muestra en la fila y avisa antes de borrar
+  const tagUsage = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const b of bills) {
+      for (const t of b.tags ?? []) m[t] = (m[t] ?? 0) + 1;
+    }
+    return m;
+  }, [bills]);
+
+  // Renombrar o borrar una marca cambia los gastos en el servidor: hay que
+  // recargarlos o la tabla y el dashboard seguirían mostrando el nombre viejo.
+  const handleUpdateTag = async (id: string, name: string) => {
+    const ok = await updateTag(id, name);
+    if (ok) await getBillsStore();
+    return ok;
+  };
+
+  const handleDeleteTag = async (id: string) => {
+    await deleteTag(id);
+    await getBillsStore();
+  };
+
   const tabCount: Record<Tab, number> = {
     gasto:   gastoList.length,
     ingreso: ingresoList.length,
     metodos: payChannels.length,
+    marcas:  tags.length,
   };
 
   const addPlaceholder =
     tab === "gasto"   ? "Nueva categoría de gastos..." :
     tab === "ingreso" ? "Nueva categoría de ingresos..." :
+    tab === "marcas"  ? "Nueva marca... (ej: Trabajo)" :
                         "Nuevo método de pago...";
 
   const handleAdd = async (name: string) => {
     if (tab === "gasto")   await createCategory(name, "gasto");
     else if (tab === "ingreso") await createCategory(name, "ingreso");
+    else if (tab === "marcas")  await createTag(name);
     else await createPayChannel(name, "ambos"); // default: applies to both
   };
 
@@ -514,7 +701,7 @@ const Configuracion = () => {
       <div>
         <h1 className="text-xl font-bold text-slate-100">Configuración</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Administra las categorías, métodos de pago y tu perfil.
+          Administra las categorías, métodos de pago, marcas y tu perfil.
         </p>
       </div>
 
@@ -523,7 +710,7 @@ const Configuracion = () => {
       <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-lg overflow-hidden">
 
         {/* Tabs — 3 cols on mobile, horizontal on sm+ */}
-        <div className="grid grid-cols-3 sm:flex border-b border-slate-800">
+        <div className="grid grid-cols-2 sm:flex border-b border-slate-800">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
@@ -542,6 +729,16 @@ const Configuracion = () => {
             </button>
           ))}
         </div>
+
+        {/* Hint for tags tab */}
+        {tab === "marcas" && !loading && (
+          <div className="px-4 py-2.5 border-b border-slate-800">
+            <p className="text-xs text-slate-500">
+              Las marcas etiquetan tus gastos de forma transversal a las categorías: factura electrónica, hijos,
+              trabajo… Un gasto puede llevar varias, y aparecen en el registro, el dashboard, el análisis y WhatsApp.
+            </p>
+          </div>
+        )}
 
         {/* Hint for payment methods tab */}
         {tab === "metodos" && !loading && payChannels.length > 0 && (
@@ -594,6 +791,20 @@ const Configuracion = () => {
                       onSave={async (id, name) => { await updatePayChannel(id, name); }}
                       onDelete={deletePayChannel}
                       onToggleType={togglePayChannelType}
+                      onToggleCreditCard={toggleCreditCard}
+                    />
+                  ))
+            )}
+            {tab === "marcas" && (
+              tags.length === 0
+                ? <p className="text-center py-12 text-slate-600 text-sm">No hay marcas. Agrega la primera abajo.</p>
+                : tags.map((item) => (
+                    <TagRow key={item._id} item={item}
+                      usageCount={tagUsage[item.name] ?? 0}
+                      onSave={handleUpdateTag}
+                      onSaveEmoji={updateTagEmoji}
+                      onSaveDescription={updateTagDescription}
+                      onDelete={handleDeleteTag}
                     />
                   ))
             )}

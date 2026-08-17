@@ -32,6 +32,14 @@ const hashName = (name: string): number => {
 export const getCategoryColor = (category: string): string =>
   PALETTE[hashName(category) % PALETTE.length] ?? "#9ca3af";
 
+/**
+ * Color hex de una marca. Usa el mismo palette que las categorías pero con un
+ * sufijo en el hash, para que una marca y una categoría del mismo nombre no
+ * salgan del mismo color en la misma pantalla.
+ */
+export const getTagColor = (tag: string): string =>
+  PALETTE[hashName(`${tag}#tag`) % PALETTE.length] ?? "#9ca3af";
+
 /** Returns "🛒 Mercado" or just "Mercado" when no emoji is set. */
 export const getCategoryLabel = (name: string, emoji?: string): string =>
   emoji ? `${emoji} ${name}` : name;

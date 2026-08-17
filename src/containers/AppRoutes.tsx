@@ -8,6 +8,7 @@ import { useIncomes } from "../hooks/useIncomes";
 import { useAuth }    from "../hooks/useAuth";
 import { useCatalog } from "../hooks/useCatalog";
 import { useBudgets } from "../hooks/useBudgets";
+import { useCardPayments } from "../hooks/useCardPayments";
 
 // ─── Lazy pages — each becomes its own JS chunk ───────────────────────────────
 const Home          = React.lazy(() => import("../pages/Home"));
@@ -40,6 +41,7 @@ const AppRoutes = () => {
   const { getIncomesStore } = useIncomes();
   const { getCatalogStore } = useCatalog();
   const { getBudgetsStore } = useBudgets();
+  const { getCardPaymentsStore } = useCardPayments();
 
   useEffect(() => {
     checkToken().then((valid) => {
@@ -54,6 +56,7 @@ const AppRoutes = () => {
       getIncomesStore();
       getCatalogStore();
       getBudgetsStore();
+      getCardPaymentsStore();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);

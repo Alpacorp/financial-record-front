@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { BillFormValues } from "../../types/bill";
-import { Category, PayChannel } from "../../types/catalog";
+import { Category, PayChannel, Tag } from "../../types/catalog";
 import CatalogEmptyWarning from "../CatalogEmptyWarning";
+import BillTagsField from "./BillTagsField";
 import billsApi from "../../apis/billsApi";
 import { getCategoryLabel } from "../../constants/categories";
 
 interface CatalogState {
   categories: Category[];
   payChannels: PayChannel[];
+  tags: Tag[];
   status: "idle" | "checking" | "success" | "failure";
 }
 
@@ -19,6 +21,7 @@ interface BillFormProps {
 
 const EMPTY_FORM: BillFormValues = {
   name: "", category: "", detail: "", amount: 0, date: "", type: "Contado", paymethod: "", dues: undefined,
+  tags: [],
 };
 
 type FormErrors = Partial<Record<keyof BillFormValues, string>>;
@@ -54,7 +57,7 @@ const todayStr = () => {
 };
 
 const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
-  const { categories, payChannels, status: catalogStatus } = useSelector(
+  const { categories, payChannels, tags, status: catalogStatus } = useSelector(
     (state: { catalog: CatalogState }) => state.catalog
   );
 
@@ -134,6 +137,7 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
         text: aiText,
         categories: expenseCategories.map((c) => c.name),
         paymethods: payChannels.map((p) => p.name),
+        tags: tags.map((t) => ({ name: t.name, description: t.description })),
         today: todayStr(),
       });
       if (data.ok && data.parsed) {
@@ -147,6 +151,10 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
           type:      p.type === "Crédito" ? "Crédito" : "Contado",
           paymethod: p.paymethod ?? "",
           dues:      p.dues      ?? undefined,
+          // La IA puede inventar marcas: solo se aceptan las del catálogo
+          tags: Array.isArray(p.tags)
+            ? p.tags.filter((t: string) => tags.some((tag) => tag.name === t))
+            : [],
         });
         setErrors({});
         setAiOpen(false);
@@ -182,6 +190,9 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
     const errs = validate(form);
     setErrors((prev) => ({ ...prev, [name]: errs[name as keyof BillFormValues] }));
   };
+
+  const handleTagsChange = (tags: string[]) =>
+    setForm((prev) => ({ ...prev, tags }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -437,6 +448,10 @@ const BillForm = ({ onSubmit, loading = false }: BillFormProps) => {
                 <FieldError msg={errors.dues} />
               </div>
             )}
+          </div>
+
+          <div className="mt-5">
+            <BillTagsField value={form.tags ?? []} onChange={handleTagsChange} />
           </div>
 
           <div className="flex justify-end mt-5">

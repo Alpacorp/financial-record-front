@@ -1,12 +1,18 @@
 import React, { useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { Bill } from "../types/bill";
+import { Tag } from "../types/catalog";
 import { getCategoryColor } from "../constants/categories";
 import { useEmojiMap } from "../hooks/useEmojiMap";
+import { filterBillsByTag } from "../utils/billsAnalytics";
 
 interface BillsState {
   data: Bill[];
   status: "idle" | "checking" | "success" | "failure";
+}
+
+interface CatalogState {
+  tags: Tag[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -90,12 +96,19 @@ const buildProjection = (bills: Bill[], horizonMonths: number): ProjectionMonth[
 type SortBy = "delta" | "a" | "b" | "alpha";
 
 const Analisis = () => {
-  const { data: bills, status } = useSelector((state: { bills: BillsState }) => state.bills);
+  const { data: allBills, status } = useSelector((state: { bills: BillsState }) => state.bills);
+  const { tags } = useSelector((state: { catalog: CatalogState }) => state.catalog);
   const emojiMap = useEmojiMap();
 
   const [periodA, setPeriodA] = useState(ymFromNow(-1));
   const [periodB, setPeriodB] = useState(ymFromNow(0));
   const [sortBy,  setSortBy]  = useState<SortBy>("delta");
+  const [activeTag, setActiveTag] = useState("");
+
+  const bills = useMemo(
+    () => (activeTag ? filterBillsByTag(allBills, activeTag) : allBills),
+    [allBills, activeTag]
+  );
 
   const billsA = useMemo(() => bills.filter((b) => b.date?.startsWith(periodA)), [bills, periodA]);
   const billsB = useMemo(() => bills.filter((b) => b.date?.startsWith(periodB)), [bills, periodB]);
@@ -130,7 +143,8 @@ const Analisis = () => {
     [categories]
   );
 
-  const projection = useMemo(() => buildProjection(bills, 12), [bills]);
+  // La proyección de cuotas es siempre global: el toggle solo acota el comparador
+  const projection = useMemo(() => buildProjection(allBills, 12), [allBills]);
   const maxMonthTotal = useMemo(
     () => Math.max(...projection.map((m) => m.total), 1),
     [projection]
@@ -155,7 +169,14 @@ const Analisis = () => {
       {/* ══ Sección 1: Comparador ══ */}
       <section className="space-y-4">
         <div>
-          <h1 className="text-base font-semibold text-slate-100">Comparador de períodos</h1>
+          <h1 className="text-base font-semibold text-slate-100">
+            Comparador de períodos
+            {activeTag && (
+              <span className="ml-2 align-middle text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300">
+                🏷️ {activeTag}
+              </span>
+            )}
+          </h1>
           <p className="text-xs text-slate-500 mt-0.5">Selecciona dos meses y compara tus gastos por categoría</p>
         </div>
 
@@ -177,6 +198,19 @@ const Analisis = () => {
               <input type="month" value={periodB} onChange={(e) => setPeriodB(e.target.value)}
                 className="text-sm border border-slate-600 rounded-lg px-3 py-2 bg-slate-800 text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
+            {tags.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Marca</label>
+                <select value={activeTag} onChange={(e) => setActiveTag(e.target.value)}
+                  title="Compara únicamente los gastos con esta marca"
+                  className="text-sm border border-slate-600 rounded-lg px-3 py-2 bg-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                  <option value="">Todos los gastos</option>
+                  {tags.map((t) => (
+                    <option key={t._id} value={t.name}>{t.emoji ? `${t.emoji} ` : ""}{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="sm:ml-auto">
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Ordenar por</label>
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}

@@ -5,6 +5,7 @@ import { Bill, BillFormValues } from "../../types/bill";
 import { Category, PayChannel } from "../../types/catalog";
 import { getCategoryLabel } from "../../constants/categories";
 import CatalogEmptyWarning from "../CatalogEmptyWarning";
+import BillTagsField from "./BillTagsField";
 
 interface CatalogState {
   categories: Category[];
@@ -64,6 +65,9 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
       return next;
     });
   };
+
+  const handleTagsChange = (tags: string[]) =>
+    setForm((prev) => (prev ? { ...prev, tags } : prev));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,6 +174,10 @@ const EditBillModal = ({ bill, onSave, onClose }: EditBillModalProps) => {
                     value={form.dues || ""} onChange={handleChange} min="1" placeholder="Ej: 12" />
                 </div>
               )}
+            </div>
+
+            <div className="mt-5">
+              <BillTagsField value={form.tags ?? []} onChange={handleTagsChange} />
             </div>
           </div>
 

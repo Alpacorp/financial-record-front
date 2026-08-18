@@ -83,7 +83,7 @@ const parseLocal = (s: string): Date => {
 
 // ─── Presets ──────────────────────────────────────────────────────────────────
 
-type Preset = "month" | "prevMonth" | "3m" | "6m" | "year" | "all" | "custom";
+type Preset = "month" | "prevMonth" | "3m" | "6m" | "year" | "prevYear" | "all" | "custom";
 
 const PRESETS: { id: Preset; label: string }[] = [
   { id: "month",     label: "Este mes" },
@@ -91,6 +91,7 @@ const PRESETS: { id: Preset; label: string }[] = [
   { id: "3m",        label: "3 meses" },
   { id: "6m",        label: "6 meses" },
   { id: "year",      label: "Este año" },
+  { id: "prevYear",  label: "Año anterior" },
   { id: "all",       label: "Todo" },
   { id: "custom",    label: "Personalizado" },
 ];
@@ -307,6 +308,10 @@ const Dashboard = () => {
       case "3m":     return { from: firstOfMonthOffset(-2), to: cur };
       case "6m":     return { from: firstOfMonthOffset(-5), to: cur };
       case "year":   return { from: `${curYear}-01-01`, to: cur };
+      case "prevYear": {
+        const prev = Number(curYear) - 1;
+        return { from: `${prev}-01-01`, to: `${prev}-12-31` };
+      }
       case "all": {
         const range = getDataDateRange(data);
         if (!range) return { from: cur, to: cur };
